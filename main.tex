@@ -1,0 +1,207 @@
+\documentclass{article}
+ 
+\usepackage{authblk}
+\usepackage{oldgerm}
+\usepackage{mathpartir}
+\usepackage{calc}
+\usepackage{kpfonts}
+\usepackage{esvect}
+\usepackage{mathtools}
+\usepackage{enumerate}
+\usepackage[a4paper]{geometry}
+\usepackage{url}
+\usepackage[english]{babel}
+\usepackage[utf8]{inputenc}
+\usepackage{amsmath,amsfonts,amsthm,stmaryrd}
+\usepackage{thmtools}
+\usepackage[bookmarks,
+            pagebackref,
+            colorlinks,
+            linkcolor={red!50!black},
+            citecolor={blue!50!black},
+            urlcolor={blue!80!black}]{hyperref}
+
+\hypersetup{
+  pdfauthor={Lars Birkedal and Ale\v{s} Bizjak},
+  pdftitle={Lecture Notes on Iris: Higher-Order Concurrent Separation Logic}
+}
+
+\usepackage[usenames,dvipsnames]{xcolor}
+
+\usepackage{pftools}
+
+% iris specific macros
+\usepackage{iris}
+\usepackage{heaplang}
+
+\usepackage{tikz}
+\usepackage{tikz-cd}
+
+\usepackage{verbatim}
+
+\usepackage{calc}
+\usetikzlibrary{positioning}
+\usetikzlibrary{decorations.pathreplacing}
+
+\newenvironment{invdrawing}{
+  \begin{tikzpicture}
+    \tikzstyle{nn} = [inner sep=0pt,outer sep=0pt, text width=30pt, align=center, text height=15pt]
+    \tikzstyle{braceunder} = [decoration={brace,amplitude=10pt,mirror,raise=2pt},decorate,thick]
+    \tikzstyle{braceover} = [decoration={brace,amplitude=10pt,raise=2pt},decorate,thick]
+    \colorlet{c1}{olive!50}
+    \colorlet{c2}{red!70}
+    \colorlet{c3}{blue!40}
+  }
+  {\end{tikzpicture}}
+
+\declaretheorem[style=plain,numberwithin=section]{theorem}
+\declaretheorem[style=plain,sibling=theorem]{lemma}
+\declaretheorem[style=plain,sibling=theorem]{proposition}
+\declaretheorem[style=plain,sibling=theorem]{corollary}
+
+\declaretheorem[style=definition,qed=$\blacksquare$,sibling=theorem]{definition}
+\declaretheorem[style=definition,qed=$\blacksquare$,sibling=theorem]{example}
+\declaretheorem[style=definition,qed=$\blacksquare$,sibling=theorem]{remark}
+\declaretheorem[style=definition,qed=$\diamondsuit$,sibling=theorem]{exercise}
+
+\input{macros}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% hoare proof typesetting (from setup.sty)
+
+\usepackage{array}\extrarowheight=\jot	% else, arrays are scrunched compared to, say, aligned
+\newcolumntype{.}{@{}}
+\usepackage{tabu}
+\usepackage{rotating}
+\usepackage{xstring}
+\usepackage{xspace}
+\usepackage{semantic}
+\usepackage{csquotes}
+\usepackage{cleveref}
+
+\newcommand{\tabubox}[2][]{%
+  \begin{tabu}{@{#1}X[1,l,m]@{}}%
+    #2 %
+  \end{tabu}%
+}
+\newcommand{\hproofnospace}[1]{\noindent\parbox{\linewidth}{#1}} %
+\newcommand{\hproof}[1]{\vspace{0.5em}\hproofnospace{#1}\vspace{0.5em}} %
+\newcommand\psub[2]{%
+  \begin{tabu}{ m{0.9em} | X[1,l,m] }%
+    \begin{sideways}#1\end{sideways} &%
+    \tabubox{#2}%
+  \end{tabu}%
+}%
+
+\newcommand\pind[1]{\tabubox[\hspace{1em}]{#1}}
+\newcommand{\mline}[1]{\ensuremath{#1}}
+\newcommand{\pline}[2][\empty]{\ensuremath{\left\{{#2\mathstrut}\right\}_{#1}}}
+\newcommand{\pmline}[2][\empty]{\ensuremath{\left\{\begin{inbox}#2\end{inbox}\right\}_{#1}}}
+\newcommand{\aline}[2][\empty]{\ensuremath{{\stretchleftright[450]{\langle}{#2\mathstrut}{\rangle}}_{#1}}}
+\newcommand{\amline}[2][\empty]{\ensuremath{{\stretchleftright[450]{\langle}{\begin{inbox}#2\end{inbox}}{\rangle}}_{#1}}}
+\definecolor{code_color}{rgb}{0, 0, 0.6}
+\newcommand{\cdline}[1]{\ensuremath{\textcolor{code_color}{#1}}}
+\definecolor{commentcolor}{rgb}{0, 0.6, 0}
+\newcommand{\comline}[1]{\textcolor{commentcolor}{#1}}
+\newcommand{\letline}[1]{\LET \ensuremath{#1}}
+
+\newcommand{\mdoubleplus}{\ensuremath{\mathbin{+\mkern-7mu+}}}
+
+\definecolor{interp_p_backgr}{rgb}{0.8, 0.8, 1.0}
+\definecolor{interp_q_backgr}{rgb}{0.8, 1.0, 0.8}
+
+
+\renewcommand{\qedsymbol}{{\frakfamily QED}}
+
+
+\title{\vfill Lecture Notes on\\ Iris: Higher-Order Concurrent Separation Logic}
+\author{Lars Birkedal}
+\author{Ale\v{s} Bizjak}
+\affil{Aarhus University 
+  \href{mailto:birkedal@cs.au.dk;abizjak@cs.au.dk}{\{birkedal,abizjak\}@cs.au.dk}}
+
+\date{\today\vfill}
+
+\begin{document}
+
+\maketitle
+\thispagestyle{empty}
+
+\begin{minipage}{\textwidth-2cm}
+  \textbf{With contributions by:}
+  Kristoffer Just Andersen (Aarhus University),
+  Johan Bay (Aarhus University),
+  Daniel Gratzer (Carnegie Mellon University / Aarhus University),
+  Dan Frumin (Radboud University Nijmegen),
+  Mathias H{\o}ier (Aarhus University),
+  Robbert Krebbers (Aarhus University / Delft University of Technology),
+  Marit Edna Ohlenbusch (Aarhus University),
+  Amin Timany (KU Leuven / Aarhus Univeristy),
+  Simon Friis Vindum (Aarhus University),
+  Felix Wiemuth (Aarhus University),
+  Jonas Kastberg Hinrichsen (Aarhus University).
+\end{minipage}
+
+\newpage
+
+\pagestyle{empty}
+\setcounter{tocdepth}{2}
+\tableofcontents
+
+\newpage
+
+\pagestyle{plain}
+\setcounter{page}{1}
+\input{sections/preface.tex}
+
+\newpage
+
+\input{sections/introduction.tex}
+
+\input{sections/setup.tex}
+
+\input{sections/basic-resource-logic.tex}
+
+\input{sections/basic-separation-logic.tex}
+
+\input{sections/case-study-foldr.tex}
+
+\input{sections/later-modality.tex}
+
+\input{sections/always-modality.tex}
+
+\input{sections/invariants-and-ghost-state.tex}
+
+\input{sections/case-study-invariants-for-sequential-programs.tex}
+
+\input{sections/case-study-stacks-with-helping.tex}
+
+\input{sections/case-study-ticket-lock.tex}
+
+\input{sections/case-study-array-lock.tex}
+
+\input{sections/modular-specs-of-concurrent-modules.tex}
+
+\input{sections/first-steps-base-logic.tex}
+
+\input{sections/iris-coq.tex}
+
+\input{sections/inductive-coinductive-predicates.tex}
+
+\input{sections/later-steps.tex}
+
+\input{sections/logical-relations.tex}
+
+\bibliographystyle{plain}
+\bibliography{main}
+
+\appendix
+
+\input{sections/overview.tex}
+
+\end{document}
+
+%%% Local Variables:
+%%% mode: latex
+%%% TeX-master: t
+%%% End:

@@ -1,0 +1,317 @@
+\section{Case Study: Invariants for Sequential Programs}
+\label{sec:case-study:sequential-invariants}
+
+In this section we will use a technique known as Landin's knot to define recursive functions without the use of the primitive rec f(x) = e. Instead we are going to use \emph{recursion through the store}. We first define \langkw{myrec} as: 
+\begin{displaymath}
+{\langkw{myrec}} \, f = 
+      \Let r = \Ref(\lambda x. \, x)  in
+      r \gets \left( \lambda x.\, f \, (\deref{r}) \, x \right);\ \deref{r}
+\end{displaymath}
+
+Before giving a specification to $\langkw{myrec}$ we will try to get an intuition of how Landin's knot works.
+To this end we consider what a client implementing the factorial of a natural number could look like and how it would compute the factorial of $2$.
+First we define the $f$ we are going to use as:
+\begin{displaymath}
+{\langkw{F}} = 
+     \lambda f. \lambda x. \If {x = 0} then 1 \Else x * \left( f \, (x-1)\right)
+\end{displaymath}
+Next we define
+\begin{displaymath}
+{\langkw{fac}} = \langkw{myrec} \, \langkw{F}
+\end{displaymath}
+Hence we have that
+\begin{align*}
+\langkw{fac} \, 2 = \Let r = \lambda x. \, x  in r \gets \left( \lambda x. \langkw{F}\, (\deref{r})\, x\right); \ (\deref{r})\, 2 
+\end{align*}
+Now we consider how \langkw{fac} 2 reduces. After some steps, we have that $r \pointsto \left(\lambda x.\, \langkw{F}\,  (\deref{r})\, x\right)$ and the computation continues as
+\begin{align*}
+(\deref{r}) \, 2 &\stepsto \left(\lambda x.\, \langkw{F}\,  (\deref{r})\, x\right) \, 2 \\
+&\stepsto  \langkw{F}\,  (\deref{r})\, 2 \\
+&\stepsto \langkw{F}\,  \left(\lambda x.\, \langkw{F}\,  (\deref{r})\, x\right)\, 2 \\
+&\stepsto  \lambda x. \If {x = 0} then 1 \Else x * \left( \left(\lambda x.\, \langkw{F}\,  (\deref{r})\, x\right) \, (x-1) \right)\, 2 \\
+&\stepsto  \If {2 = 0} then 1 \Else 2 *  \left( \left(\lambda x.\, \langkw{F}\,  (\deref{r})\, x\right) \, (2-1) \right) \\
+&\stepsto 2* \left( \left(\lambda x.\, \langkw{F}\,  (\deref{r})\, x\right) \, (2-1) \right) \\
+&\stepsto 2 * \left( \left(\lambda x.\, \langkw{F}\,  (\deref{r})\, x\right) \, 1\right) \\
+\vdots \\
+&\stepsto 2* \If {1 = 0} then 1 \Else 1 *  \left( \left(\lambda x.\, \langkw{fac}\,  (\deref{r})\, x\right) \, (1-1) \right) \\
+\vdots \\
+&\stepsto 2* 1* \left( \left(\lambda x.\, \langkw{F}\,  (\deref{r})\, x\right) \, 0 \right) \\
+&\stepsto 2* \left( \left(\lambda x.\, \langkw{F}\,  (\deref{r})\, x\right) \, 0 \right)\\
+&\stepsto 2 * \left(\langkw{F}\,  (\deref{r})\, 0\right) \\
+\vdots \\
+&\stepsto 2 * \If {0 = 0} then 1 \Else 0 *  \left(\lambda x.\, \langkw{F}\,  (\deref{r})\, x\right) \, (0-1) \\
+&\stepsto 2*1 \\
+&\stepsto 2
+\end{align*}
+Now it should be clear that the trick is that $r$ is mapped to a $\lambda$-abstraction, \emph{which refers to $r$ in it's body}.
+Another important observation is that the value $r$ points to never changes after it has been updated to $\lambda x.\, \langkw{F}\,  (\deref{r})\, x$ in the beginning. 
+
+The specification we want \langkw{myrec} to satisfy is:
+\begin{mathpar}
+  \inferhref{Ht-myrec}{Ht-myrec}
+  { \Gamma, f:\Val, g : \Val \mid S \land \All y . \All v. \hoare{P}{g v}{u.Q } \proves \All y . \All v. \hoare{P} {f\, g\, v} {u.Q}}
+  { \Gamma \mid S \proves \All y . \All v. \hoare{P}{\langkw{myrec} \, f \, v}{u.Q}}
+\end{mathpar}
+This specification is similar to the first recursive rule from Section~\ref{sec:basic-separation-logic}. The only differences 
+is that here $f$ is assumed to be a value and that we have $f\, g\, v$ in the premise instead of $e [g/f, v/x]$. 
+
+\subsubsection*{Proof of the specification for myrec}
+To prove Ht-myrec we assume the premise
+\begin{align}
+\label{myrec_1}
+\Gamma, f:\Val, g : \Val \mid S \land \All y . \All v. \hoare{P}{g v}{u.Q } \proves \All y . \All v. \hoare{P} {f\, g\, v} {u.Q}
+\end{align} 
+holds.
+By~\ruleref{Ht-persistently} and~\ruleref{forall-I} we have that
+
+\begin{align}
+\label{myrec_2}
+\Gamma, f:\Val \mid S\proves \All g. \All y . \All v. \hoare{P \ast \left( \All y . \All v. \hoare{P}{g v}{u.Q }\right)} {f\, g\, v} {u.Q}
+\end{align}
+holds.
+
+The Hoare-triple we want to prove is
+\begin{align*}
+\forall y, \forall v. \hoare{P}{
+ \left( \lambda f. \Let r = \lambda x. \, x  in 
+      r \gets \left( \lambda x.\, f \, (\deref{r})\, x \right); \ \deref{r} \right) \, f \, v
+      }{u.Q}
+\end{align*}
+We proceed by using~\ruleref{forall-I} twice,~\ruleref{Ht-beta},~\ruleref{Ht-let},~\ruleref{Ht-frame} and \ruleref{Ht-alloc}. Hence it suffices to prove
+\begin{align*}
+\forall r. \hoare{\exists l. P * l=r * l \pointsto \left( \lambda x. \, x \right)}{ r \gets \left(\lambda x.\, f \, (\deref{r})\, x\right) ;\ (\deref{r}) \, v}{u.Q}
+\end{align*}
+By~\ruleref{forall-I},~\ruleref{Ht-exist},~\ruleref{forall-I} and~\ruleref{Ht-Pre-Eq} it suffices to show
+\begin{align*}
+\hoare{P * l \pointsto \left( \lambda x. \, x \right)}{ l\gets \left( \lambda x.\, f \, (\deref{l})\, x\right) ; (\deref{l})  \, v}{u.Q}
+\end{align*}
+Now by~\ruleref{Ht-seq},~\ruleref{Ht-frame} and~\ruleref{Ht-store} it suffices to show
+\begin{align*}
+\hoare{P * l \pointsto \left(\lambda x.\, f \, (\deref{l})\, x  \right)}{(\deref{l}) \, v}{u.Q}
+\end{align*}
+It the follows by~\ruleref{Ht-bind-det} and~\ruleref{Ht-load} that it suffices to show
+\begin{align}
+\hoare{P * l \pointsto \left(\lambda x.\, f \, (\deref{l})\, x  \right)}{\left(\lambda x.\, f \, (\deref{l})\, x  \right) \, v}{u.Q}
+\label{myrec_lob1}
+\end{align}
+Thus by~\ruleref{Ht-beta},~\ruleref{Ht-bind-det} and~\ruleref{Ht-load} it suffices to show
+\begin{align}
+\hoare{P * l \pointsto \left(\lambda x.\, f \, (\deref{l})\, x  \right)}{f \, \left(\lambda x.\, f \, (\deref{l)}\, x  \right) v}{u.Q}
+\label{myrec_lob2}
+\end{align}
+How do we proceed from here?
+
+\paragraph*{First attempt -- ``Naive approach''}
+Looking at triple \eqref{myrec_lob2} and comparing it to the triple at the right hand side of the $\proves$ in \eqref{myrec_1}, we see that they are similar except:
+\begin{enumerate}
+\item the precondition of the current triple is $P * l \pointsto \left(\lambda x.\, f \, (\deref{l})\, x  \right)$ instead of just $P$
+\item in \eqref{myrec_lob2} we have $\lambda x.\, f \, (\deref{l})\, x $ instead of $g$.
+\end{enumerate}
+
+Regarding 1: As $P * l \pointsto \left(\lambda x.\, f \, (\deref{l})\, x  \right) \implies P$, it follows by~\ruleref{Ht-csq} that in order to prove a triple with precondition $P * l \pointsto \left(\lambda x.\, f \, (\deref{l})\, x  \right)$ it suffices to prove the same triple with precondition $P$ instead.
+
+Regarding  2: As the $g$ is actually quantified by a $\forall$\footnote{see~\eqref{myrec_2}.}, we have that if we can show that $\All y . \All v. \hoare{P}{\left(\lambda x.\, f \, (\deref{l})\, x  \right) v}{u.Q }$ holds then $\hoare{P}{f \, \left(\lambda x.\, f \, (\deref{l})\, x  \right) v}{u.Q}$ follows by the assumption that~\eqref{myrec_1} holds.
+
+Combining the two we get that it suffices to prove 
+\begin{align}
+\label{myrec_ht_1}
+\All y . \All v. \hoare{P}{\left(\lambda x.\, f \, (\deref{l})\, x  \right) v}{u.Q }
+\end{align}
+We proceed by using~\ruleref{forall-I} twice and~\ruleref{Ht-beta}. It thus suffices to prove 
+\begin{align*}
+\hoare{P}{ f \, (\deref{l})\, v}{u.Q }
+\end{align*}
+Now by~\ruleref{Ht-bind} we need to show
+\begin{enumerate}
+\item $f \, - \, v$ is an Evaluation context.
+  \label{myrec-enum-1}
+\item $\hoare{P} {\deref{l}} {w. R}$
+  \label{myrec-enum-2}
+\item $\All w. \hoare{R}{ f \, w\, v}{u.Q }$
+  \label{myrec-enum-3}
+\end{enumerate}
+for some $R$ of our choice. Item~\eqref{myrec-enum-1} is clear since $f$ is assumed to be a value. For item~\eqref{myrec-enum-2} we get stuck, as we no longer have $l \pointsto \left(\lambda x.\, f \, (\deref{l})\, x  \right)$ in our precondition and thus we can not dereference $l$.
+
+\paragraph*{Second attempt -- ``L{\"o}b induction''}
+In the beginning of Section~\ref{sec:introducing-later}, a fixed-point combinator for defining recursive functions was defined. In the proof of the rule for this fixed-point combinator the L{\"o}b rule played a crucial role. As we are doing something similar it might be useful to apply L{\"o}b induction here as well.
+
+An immediate challenge is then: when should we apply the rule?
+The rule needs to be applied at a stage, which we will return to later, such that we may use the assumption we get at this later time. The two best places seem to be either where we ended~\eqref{myrec_lob2}
+\begin{align*}
+\hoare{P * l \pointsto \left(\lambda x.\, f \, (\deref{l})\, x  \right)}{f \, \left(\lambda x.\, f \, (\deref{l})\, x  \right) v}{u.Q}
+\end{align*}
+or one step further back~\eqref{myrec_lob1}
+\begin{align*}
+\hoare{P * l \pointsto \left(\lambda x.\, f \, (\deref{l})\, x  \right)}{\left(\lambda x.\, f \, (\deref{l})\, x  \right) \, v}{u.Q}
+\end{align*}
+Clearly, we won't return to the exact same code later (if this was the case, then we would loop indefinitely). When we return to either of these stages, the value $v$ will be different, hence we of course want our L{\"o}b induction hypothesis to work for all values, not just a particular one. 
+
+In the second case  this poses no problem at all; we added $v$ to the context when we used~\ruleref{forall-I} in the beginning, hence we can use~\ruleref{forall-E} before using L{\"o}b induction to get a sufficiently general assumption. 
+
+In the first case, we can do the same trick for the value $v$ (the second argument), but we can't do so for the first argument of $f$. Looking at item~\eqref{myrec-enum-3} in our first attempt, we see that it seems likely that we would need to consider a general value for the first argument to $f$ as well.
+
+Therefore, we decide to use L{\"o}b induction in the second case.
+
+We start from~\eqref{myrec_lob1}. By~\ruleref{forall-E} it suffices to prove
+\begin{align*}
+\All v. \hoare{P * l \pointsto \left(\lambda x.\, f \, (\deref{l})\, x  \right)}{\left(\lambda x.\, f \, (\deref{l})\, x  \right) \, v}{u.Q}.
+\end{align*}
+Hence by L{\"o}b induction we may assume that $\later \left( \All v. \hoare{P * l \pointsto \left(\lambda x.\, f \, (\deref{l})\, x  \right)}{\left(\lambda x.\, f \, (\deref{l})\, x  \right) \, v}{u.Q}\right)$ holds.
+
+First we get rid of the $\forall$ quantification by using~\ruleref{forall-I}. We then proceed by~\ruleref{Ht-beta},~\ruleref{Ht-bind-det} and~\ruleref{Ht-load} and thus it suffices to show
+\begin{align*}
+\hoare{P * l \pointsto \left(\lambda x.\, f \, (\deref{l})\, x  \right)}{f \, \left(\lambda x.\, f \, (\deref{l})\, x  \right) v}{u.Q}
+\end{align*}
+Now we proceed as in our first attempt. When we reach the point where we need to prove~\eqref{myrec_ht_1}, we are almost able to conclude the proof. We need to prove 
+\begin{align*}
+\All y. \All v.\hoare{P}{\left(\lambda x.\, f \, (\deref{l})\, x  \right) \, v}{u.Q}
+\end{align*}
+and we have the assumption that\footnote{Notice that the $\later$ has been stripped from the assumption we got by the L{\"o}b induction. The reason for this is that the operational semantics has taken at least one step. Concretely, one could reason as follows; the assumption is persistent, as Hoare-triples are, and since $\later$ commutes with $\persistently$. We can therefore use~\ruleref{Ht-persistently} to move the assumption into the precondition of the Hoare-triple. Each time the operational semantics takes a step, we may use~\ruleref{Ht-bind} to bind the atomic step, and then use~\ruleref{Ht-frame-atomic} to remove the $\later$ from the assumption. As the assumption without the later is still persistent, we may move it back into our assumptions by using~\ruleref{Ht-persistently} in the other direction.}
+\begin{align*}
+\All v. \hoare{P * l \pointsto \left(\lambda x.\, f \, (\deref{l})\, x  \right)}{\left(\lambda x.\, f \, (\deref{l})\, x  \right) \, v}{u.Q}
+\end{align*}
+The $\All y$ we can get rid of by~\ruleref{forall-I}, but the assumption is not strong enough, as it requires us to have $ l \pointsto \left(\lambda x.\, f \, (\deref{l})\, x  \right)$ in the precondition, which we don't have. We are thus stuck again.
+
+If we instead had forgotten $ l \pointsto \left(\lambda x.\, f \, (\deref{l})\, x \right)$, before using L{\"o}b induction, then we would have gotten a stronger assumption that doesn't require $ l \pointsto \left(\lambda x.\, f \, (\deref{l})\, x  \right)$ to be in the precondition. Our problem would then be, that giving up $ l \pointsto \left(\lambda x.\, f \, (\deref{l})\, x  \right)$, we almost immediately get stuck:
+we could go from 
+\begin{align*}
+\hoare{P}{\left(\lambda x.\, f \, (\deref{l})\, x  \right) \, v}{u.Q}
+\end{align*}
+to
+\begin{align*}
+\hoare{P}{f \, (\deref{l}) \, v}{u.Q}
+\end{align*}
+but then the loss of the right to dereference $l$ stops us from going any further.
+
+\paragraph*{Third attempt -- ``Invariants''}
+
+When computing the factorial of 2, we noticed that the location kept pointing to the same value after it had been initialized and updated once, i.e., that it was invariant from this point on and onwards. Let us therefore try to state this as an invariant and see how things go. For this attempt, we will try to see if we can succeed without using L{\"o}b induction. Let $\mathcal{E}$ be the current mask\footnote{We didn't explicitly annotate the Hoare-triples with masks before, as we didn't use any invariants.}.
+
+As we have that $l \pointsto \left(\lambda x.\, f \, (\deref{l})\, x\right)$ and hence clearly $\later \left( l \pointsto \left(\lambda x.\, f \, (\deref{l})\, x \right) \right)$ it suffices by~\ruleref{Ht-inv-alloc} to prove
+
+\begin{align*}
+\Exists \iota \in \mathcal{E}.\knowInv{\iota}{l \pointsto \left(\lambda x.\, f \, (\deref{l})\, x\right)}\proves \hoare{P}{f\, \left(\lambda x.\, f \, (\deref{l})\, x  \right) v}{u.Q}[\mathcal{E}]
+\end{align*}
+
+We proceed as in the first attempt. When we get to the place, where we got stuck before, we can now use~\ruleref{Ht-bind-det} instead of \ruleref{Ht-bind}, as this time we know, what the result of dereferencing $l$ is. We thus need to show
+\begin{enumerate}
+\item $f \, - \, v$ is an evaluation context.
+  \label{myrec-enum-inv-1}
+\item $\Exists \iota \in \mathcal{E}.\knowInv{\iota}{l \pointsto \left(\lambda x.\, f \, (\deref{l})\, x\right)} \proves \hoare{P} {\deref{l}} {w. w= z \land R}[\mathcal{E}]$
+  \label{myrec-enum-inv-2}
+\item $\Exists \iota \in \mathcal{E}.\knowInv{\iota}{l \pointsto \left(\lambda x.\, f \, (\deref{l)}\, x\right)} \proves \hoare{R [z/ w] }{ f \, z\, v}{u.Q }[\mathcal{E}]$
+  \label{myrec-enum-inv-3}
+\end{enumerate}
+for some $z$ and $R$ of our choice. We consider each item in turn:
+\begin{enumerate}
+  \item As before in the first attempt. 
+
+  \item As $\deref{l}$ is atomic, we may use~\ruleref{Ht-inv-open} and thus it suffices to show
+\begin{align*}
+\Exists \iota \in \mathcal{E}.\knowInv{\iota}{l \pointsto \left(\lambda x.\, f \, (\deref{l})\, x\right)} \proves \hoareV{P \ast \later \left( l \pointsto \left(\lambda x.\, f \, (\deref{l})\, x \right) \right)} {\deref{l}} {w. w= \left( \lambda x.\, f \, (\deref{l)}\, x \right) \land R \ast \later \left( l \pointsto \left(\lambda x.\, f \, (\deref{l})\, x \right) \right)}[\mathcal{E}\setminus \{ \iota \}]
+\end{align*}
+Choosing $R$ to be $P$, this triple then follows by~\ruleref{Ht-frame} and~\ruleref{Ht-load}.
+
+\item Given the choice of $R$ in item~\eqref{myrec-enum-inv-2}, the triple we need to prove is:
+\begin{align*}
+\Exists \iota \in \mathcal{E}.\knowInv{\iota}{l \pointsto \left(\lambda x.\, f \, (\deref{l})\, x\right)} \proves \hoare{P}{ f \, \left(\lambda x.\, f \, (\deref{l})\, x\right)\, v}{u.Q }[\mathcal{E}]
+\end{align*}
+
+Now we are stuck again. $f$ is a value and $w$ is a value, hence the next reduction step would be to apply $f$ to $w$, but we don't have any information about what then happens.
+\end{enumerate}
+
+\paragraph*{Fourth attempt -- ``Invariants + L{\"o}b induction''}
+Before beginning our fourth attempt, let us try to examine our previous attempts to see if they might give any clues about how to proceed.
+
+In the first attempt we more or less just tried to brute-force the proof; this did not work out. 
+
+In the second attempt we tried to use L{\"o}b induction; this did not work either. The assumption, we got to deal with the recursive call was either too weak or came at the cost of the resource $l \pointsto \left(\lambda x.\, f \, (\deref{l})\, x\right)$, which was needed in order to get to the point, where the assumption had to be used.
+
+In the third attempt, we proceeded mostly as in the first attempt, but tried to be a bit more clever by using an invariant to maintain the resource $l \pointsto \left(\lambda x.\, f \, (\deref{l})\, x\right)$. We got a bit further than in the first attempt, but we still did not have any way to deal with the recursive call.
+
+From this it seems that we had two main challenges:
+\begin{enumerate}
+\item Dealing with the recursive call.
+\item Maintaining the resource $l \pointsto \left(\lambda x.\, f \, (\deref{l})\, x\right)$.
+\end{enumerate}
+From attempt 2 it seems that L{\"o}b induction might be able to deal with the recursive call, and from attempt 3 it seems that using an invariant might be sufficient to maintain the resource. 
+
+For our fourth attempt, we therefore decide to try using both of these techniques. Starting at the same point as in the second attempt, we have to prove
+
+\begin{align*}
+\hoare{P * l \pointsto \left(\lambda x.\, f \, (\deref{l})\, x  \right)}{\left(\lambda x.\, f \, (\deref{l})\, x  \right) \, v}{u.Q}[\mathcal{E}]
+\end{align*}
+First we allocate the invariant by~\ruleref{Ht-inv-alloc} and hence we need to show
+
+\begin{align*}
+\Exists \iota \in \mathcal{E}.\knowInv{\iota}{l \pointsto \left(\lambda x.\, f \, (\deref{l})\, x\right)}\proves \hoare{P}{\left(\lambda x.\, f \, (\deref{l})\, x  \right) \, v}{u.Q}[\mathcal{E}]
+\end{align*}
+Now we use~\ruleref{forall-E} and then L{\"o}b induction. Thus we may assume
+\begin{align*}
+\later \left( \All v. \hoare{P}{\left(\lambda x.\, f \, (\deref{l})\, x  \right) \, v}{u.Q}[\mathcal{E}]\right)
+\end{align*}
+By reasoning as in the third attempt, including opening the invariant in order to dereference $l$, we obtain that it suffices to show
+\begin{align*}
+\Exists \iota \in \mathcal{E}.\knowInv{\iota}{l \pointsto \left(\lambda x.\, f \, (\deref{l})\, x\right)}\proves \All y . \All v. \hoare{P}{\left(\lambda x.\, f \, (\deref{l})\, x  \right) v}{u.Q }[\mathcal{E}]
+\end{align*}
+This triple now follows by using~\ruleref{forall-I} to instantiate $\forall y$ and then using the assumption we got by the L{\"o}b induction. So, finally, we managed to prove the desired specification for \langkw{myrec}.
+
+\begin{exercise}
+Is it possible to prove the specification if one instead used L{\"o}b induction on the other case discussed in the second attempt? That is, can one prove
+\begin{align*}
+\Exists \iota \in \mathcal{E}.\knowInv{\iota}{l \pointsto \left(\lambda x.\, f \, (\deref{l})\, x\right)}\proves \All v. \hoare{P}{f\, \left(\lambda x.\, f \, (\deref{l})\, x  \right) v}{u.Q}[\mathcal{E}]
+\end{align*}
+under the assumption of~\eqref{myrec_1} and 
+\begin{align*}
+\later \left(\All v. \hoare{P}{f\, \left(\lambda x.\, f \, (\deref{l})\, x  \right) v}{u.Q}[\mathcal{E}] \right)
+\end{align*}
+If this is the case, then prove it.
+\end{exercise}
+
+\subsubsection*{Client: fac}
+In this subsection we prove that the client \langkw{fac} does indeed compute the factorial of its argument. Recall the definition of \langkw{fac}
+\begin{displaymath}
+{\langkw{fac}} = \langkw{myrec} \, \langkw{F}
+\end{displaymath}
+where
+\begin{displaymath}
+{\langkw{F}} = 
+     \lambda f. \lambda x. \If {x = 0} then 1 \Else x * (f \, (x-1))
+\end{displaymath}
+For the specification of \langkw{fac} we will use the standard mathematical definition of the factorial of a natural number:
+\begin{align*}
+\operatorname{factorial} \, 0 &\equiv 1 \\
+\operatorname{factorial} \, (n+1)  &\equiv (n+1) * \operatorname{factorial} \, n															
+\end{align*}
+Now we can state the specification of \langkw{fac} as
+\begin{align*}
+\All n. \hoare{n \geq 0 } {\langkw{fac}\, n}{v. v =\operatorname{factorial} \, n }
+\end{align*}
+
+\paragraph*{Proof of the specification of \langkw{fac}}
+
+Using Ht-myrec it suffices to show:
+\begin{align*}
+g:\Val \mid \All n. \hoare{ n\geq 0}{g\, n}{v. v =\operatorname{factorial} \, n } \proves \All n. \hoare{n \geq 0 } {\langkw{F}\, g\, n} {v. v =\operatorname{factorial} \, n }
+\end{align*}
+Hence we assume
+\begin{align*}
+\All n. \hoare{ n \geq 0}{g \, n}{v. v =\operatorname{factorial} \, n } 
+\end{align*}
+and then we need to show
+\begin{align*}
+\All n. \hoare{ n \geq 0 } {\langkw{F}\, g\, n} {v.  v =\operatorname{factorial} \, n }
+\end{align*}
+We proceed by using~\ruleref{forall-I} to instantiate $n$. Then we apply~\ruleref{Ht-beta} twice in order to apply \langkw{F} to its arguments. It thus suffices to prove
+\begin{align*}
+ \hoare{ n \geq 0} {\If {n = 0} then 1 \Else \, n\,  * \, (g \, (n-1))} {v. v =\operatorname{factorial} \, n }
+\end{align*}
+
+\begin{exercise}
+Complete the proof by proving the above triple.
+\end{exercise}
+
+%%% Local Variables:
+%%% mode: latex
+%%% TeX-master: "../main.tex"
+%%% End:

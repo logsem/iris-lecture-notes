@@ -1,0 +1,30 @@
+\section{Introduction}
+\label{sec:introduction}
+
+The goal of these notes is to introduce a powerful logic, called Iris, for proving \emph{partial} functional correctness of concurrent higher-order imperative programs.
+\emph{Partial correctness} refers to the fact that when a program is proved correct with respect to some specification this only guarantees that \emph{if the program terminates} then its result will satisfy the stated property.
+If a program does not terminate then the specification says nothing about its behaviour, apart from that it does not get stuck. (Knowing that an infinite computation does not get stuck can also be useful: it means that the program is safe and thus in particular that
+there are no memory errors such as trying to read from a location which does not exist in memory.)
+
+Iris is a higher-order logic.
+This means in particular that program specifications can be parametrized by arbitrary propositions.
+One of the main benefits of this is that the generality of higher-order logic specifications support modularity: libraries and modules can be specified and proved correct once and for all, and different clients, or users, of the library can be verified in isolation, using only the specification (\emph{and not the implementation}) of the library the clients are using.
+
+Iris supports verification of concurrent programs, by the use of 
+so-called \emph{ghost state}, and \emph{invariants}.
+\emph{Invariants} are a mechanism that allows different program threads to access shared resources, \eg{} read and write to the same location, provided they do not invalidate properties other threads depend on, \ie{} provided they maintain invariants.
+\emph{Ghost state} is a mechanism which allows the invariants to evolve over time.
+It allows the logic to keep track of additional information that is not present in the program code being verified, but is nonetheless essential to proving its correctness, such as relationships between values of different program variables.
+
+In these notes, we introduce Iris gradually, starting with the necessary ingredients for reasoning about simple sequential programs, and refining and extending it until the logic is capable of reasoning about higher-order, concurrent, imperative programs.
+After that we show how the logic can be simplified into a minimal \emph{base logic} in which all the rules which were used previously can be derived as theorems.
+
+The examples used to introduce and explain the rules of the logic are often minimal and somewhat contrived.
+However the notes also contain larger \emph{case studies}, in separate sections, which show that the logic can be used also to verify and reason about larger, and more realistic, programs.
+These case studies also illustrate modularity of the logic more clearly.
+More case studies can be found on the \href{http://iris-project.org}{Iris project home page}.\footnote{\href{http://iris-project.org}{iris-project.org}}
+
+%%% Local Variables:
+%%% mode: latex
+%%% TeX-master: "../main.tex"
+%%% End:

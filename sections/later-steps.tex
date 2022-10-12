@@ -1,0 +1,112 @@
+
+\section{The later modality and steps of computation}
+\label{sec:later-steps}
+
+When explaining the later modality and weakest preconditions we explained informally that
+the later modality is tied to physical steps of computation (\ie{} steps in the small-step operational semantics of the programming language).
+Formally, this can be seen in the actual definition of weakest preconditions, which we do not present in these notes but which can be seen in \cite{iris-ground-up}.
+That being said, it is very instructive to look at this relationship within the logic, \ie{} using just what we have seen so far.
+To shed some light on this relationship, in this section we look at an example of a program that is only safe, \ie{} does not get stuck, for a few steps of computation, and see what we can show in \Iris{} about such a program.
+First, however, we take a closer look at how we can formally state in \Iris{} that a statement holds for a certain number of steps.
+
+In the formal language of \Iris{} we formalize a proposition holding for a number of steps as follows:
+\begin{definition} Given a proposition $\prop$ we say that $\prop$ holds for $k$ steps if and only if the following holds:
+\begin{align*}
+  {\later}^{k} \FALSE \proves \prop \tag{$\prop$ holds for $k$ steps}
+\end{align*}
+\end{definition}
+This makes intuitive sense: if $\prop$ holds under the assumption that $\FALSE$ holds after $k$ steps, then $\prop$ must hold for $k$ steps.
+In addition, we have that for a proposition $\prop$,
+\begin{align}
+\proves \prop \text{ holds if and only if for \emph{any} } k \text{ we have } {\later}^{k} \FALSE \proves \prop \text{ holds} \label{eq:holds-if-for-all-steps}
+\end{align}
+This again makes intuitive sense: $\prop$ holds if and only if it holds for arbitrarily many steps.
+The \emph{only if} direction of the above statement \eqref{eq:holds-if-for-all-steps} is trivial.
+The \emph{if} direction, on the other hand, is not.
+It follows, rather easily (left as an exercise), from the following:
+\begin{align}
+  \proves \exists k.\; {\later}^{k} \FALSE \label{eq:expose-steps}
+\end{align}
+The statement \eqref{eq:expose-steps} above, which might be a bit surprising at first sight, is in fact logically equivalent to \ruleref{Loeb} induction.
+Before showing this however, let us ponder the intuitive meaning of \eqref{eq:expose-steps}.
+It says that there is exists a number $k$ such that $\FALSE$ holds after $k$ many steps.
+Recall that \Iris{} is a step-indexed logic where the intuitive meaning of $\proves \prop$ is that for any $j$, $\prop$ holds for $j$ steps.
+With this intuition in mind, \eqref{eq:expose-steps} essentially says that for any $j$ the following holds for $j$ steps: there exists a number $k$ such that after $k$ steps $\FALSE$ holds.
+Since we are considering the truth of the statement ``there exists a number $k$ \dots'' only up to $j$ steps, we can simply take $k$ to be any number greater than $j$.
+Then, by definition, we don't care about what happens after $k$ steps because it is already beyond the $j$ many steps that we care about.
+The crucial point here is the interpretation of the existential quantifier in our step-indexed logic.
+It allows us to pick different $k$'s for the different number of steps being considered.
+A deep and thorough consideration of the intuitive meaning behind the proof of the following theorem should reveal the intuitive reasoning we just discussed for why \eqref{eq:expose-steps} holds.
+
+\begin{remark}
+  Note that the statement \eqref{eq:expose-steps} holding, \ie{} $\proves \exists k.\; {\later}^{k} \FALSE$, does not imply that there is in fact some number $n$ for which $\proves {\later}^{n} \FALSE$ holds.
+  The key point here is that the existential quantifier can be instantiated to be a different natural number depending on the current step-index.
+  The proposition $\proves {\later}^{n} \FALSE$ cannot hold (\ie{} cannot hold for all step-indices) for any fixed $n$ because for any fixed $n$ it would not hold for step-indices greater than $n$.
+\end{remark}
+
+\begin{theorem}
+  Statement \eqref{eq:expose-steps} is equivalent to the principle of \ruleref{Loeb} induction.
+\end{theorem}
+
+\begin{proof}
+{\bfseries [\eqref{eq:expose-steps} \emph{is implied by} \ruleref{Loeb}]}
+We need to show $\proves \exists k.\; {\later}^{k} \FALSE$.
+By \ruleref{Loeb} induction it suffices to show that $\later \exists k.\; {\later}^{k} \FALSE \proves \exists k.\; {\later}^{k} \FALSE$.
+Now, we can use the \ruleref{later-exists} rule.
+Hence, we have to show that $\exists k.\; {\later}^{k+1} \FALSE \proves \exists k.\; {\later}^{k} \FALSE$.
+We then eliminate the existential quantifier as the natural number $l$ which leaves us to show ${\later}^{l+1} \FALSE \proves \exists k.\; {\later}^{k} \FALSE$.
+We simply take $k$ to be $l + 1$, or any number larger than that, to finish the proof.\\
+
+\noindent
+{\bfseries [\eqref{eq:expose-steps} \emph{implies} \ruleref{Loeb}]}
+We need to show that $\propB \proves \prop$ given that $\propB \land \later \prop \proves \prop$.
+Now, by \eqref{eq:expose-steps} we can add $\exists k.\; {\later}^{k} \FALSE$ to our hypotheses, since we are assuming it holds.
+Thus it suffices to show that $\propB \land \exists k.\; {\later}^{k} \FALSE \proves \prop$.
+We proceed by eliminating the existential quantifier as the natural number $l$ which leaves us to show $\propB \land {\later}^{l} \FALSE \proves \prop$.
+We proceed by induction on $l$.
+The base case is trivial: we have to show that $\propB \land \FALSE \proves \prop$.
+For the inductive case, we can assume (induction hypothesis) that $\propB \land {\later}^{l} \FALSE \proves \prop$ and have to show $\propB \land {\later}^{l+1} \FALSE \proves \prop$.
+Now, by our starting hypothesis, (the antecedent of \ruleref{Loeb}) we have that $\propB \land \later \prop \proves \prop$.
+Hence, it suffices to show that $\propB \land {\later}^{l+1} \FALSE \proves \propB \land \later \prop$ to conclude the proof.
+Obviously, $\propB \land {\later}^{l+1} \FALSE \proves \propB$ holds.
+Therefore, we only need to show $\propB \land {\later}^{l+1} \FALSE \proves \later \prop$.
+We proceed by weakening $\propB$ by putting it under a later modality.
+That is, we need to show $\later \propB \land {\later}^{l+1} \FALSE \proves \later \prop$.
+And since later commutes with conjunction (\ruleref{Later-conj}) we simply need to show $\later (\propB \land {\later}^{l} \FALSE) \proves \later \prop$.
+Finally, the \ruleref{Later-Mono} rule can be applied which leaves us to show $\propB \land {\later}^{l} \FALSE \proves \prop$.
+This is precisely our induction hypothesis (the induction we performed on $l$) which concludes the proof.
+\end{proof}
+
+To summarize, what we have seen so far captures, in the formal language of the logic, what we intuitively think when we think about step-indexing in \Iris{}.
+The proposition ${\later}^{k} \FALSE$ holds if we are proving things only up to $k$ steps.
+When we are proving a proposition $\prop$ in \Iris{} we are essentially showing that for any $k$ the proposition $\prop$ holds for $k$ steps \eqref{eq:holds-if-for-all-steps}.
+And that there is always a step-index $k$ such that we are proving things only up to $k$ steps \eqref{eq:expose-steps}.
+Note how the latter intuition essentially tells us that the reason why \ruleref{Loeb} induction holds is that we can perform induction on the step-index; this, \ie{} induction on the step-index, is exactly how one proves the principle of \ruleref{Loeb} induction sound in the model of \Iris{} \cite{iris-ground-up}.
+
+Now, let us consider the following program which is \emph{not} safe.
+It crashes, \ie{} gets stuck, but only after two steps of computation.
+\[ \langkw{let}~ \mathit{twoSteps} = (\lambda \var. \If \var then 2 \Else 3 + \var)~\False \]
+Since \Iris{} ties physical steps of computation (in the sense of small-step operational semantics) to logical steps, \ie{} the later modality, we should be able to show the following:
+\begin{align*}
+  \proves \hoare{{\later}^{2} \FALSE}{\mathit{twoSteps}}{\var.\; \FALSE}
+\end{align*}
+And we can.
+After applying the rule \ruleref{Ht-beta} corresponding to the function application step we need to show
+\begin{align*}
+  \proves \hoare{\later \FALSE}{\If \False then 2 \Else 3 + \False}{\var.\; \FALSE}
+\end{align*}
+Now we can use the rule \ruleref{Ht-If} for conditionals which leaves us to show
+\begin{align*}
+  \proves \hoare{\FALSE \ast \False = \True}{3 + \False}{\var.\; \FALSE}
+\end{align*}
+and
+\begin{align*}
+  \proves \hoare{\FALSE \ast \False = \False}{3 + \False}{\var.\; \FALSE}
+\end{align*}
+Both of which hold vacuously.
+Note how in this proof the postcondition is irrelevant as the program never terminates within the two steps of computation that we are considering it.
+
+%%% Local Variables:
+%%% mode: latex
+%%% TeX-master: "../main.tex"
+%%% End:

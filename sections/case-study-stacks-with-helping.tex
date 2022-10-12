@@ -1,0 +1,349 @@
+\section{Case Study: Stacks with Helping}
+\label{sec:case-study:stacks-with-helping}
+
+In this section we describe how to implement and specify a
+concurrent stack with \emph{helping} (also known as
+\emph{cooperation}).  This is an extended case study, and thus we do
+not present proofs in detail, but only outline the arguments and
+describe the important points, trusting the reader to fill in the
+details.  We intend that the data structure should be useful in a
+concurrent setting, and allow threads to pass data between them: some
+threads may add elements and other threads might remove elements.
+Therefore, the data structure does not appear as a stack, in the sense
+of obeying the first-in last-out discipline, to any one
+thread. Instead, from each thread's perspective the shared data
+structure behaves as an unstructured bag.  From a global perspective,
+the data structure behaves as a stack and, moreover, if it is only
+used by one thread it behaves as a stack.  However the specification
+we give in this section is only that of a bag, with elements
+satisfying a given predicate.  In Section~\ref{sec:logical-atomicity}
+we discuss a specification technique, which can be used to 
+give a stronger specification, which allows us
+to keep more precise track of the elements being pushed and
+popped.\footnote{Such a stronger specification can be found in
+\url{https://iris-project.org/pdfs/2017-case-study-concurrent-stacks-with-helping.pdf}.}
+
+\newcommand{\pushS}{\ensuremath{\operatorname{push}}}
+\newcommand{\popS}{\ensuremath{\operatorname{pop}}}
+
+\paragraph*{Implementation}
+The abstract data type that we are implementing is that of a stack.
+Therefore, it will have two operations, $\pushS$ and $\popS$.  The
+main complication of our data structure is that $\pushS$ and $\popS$
+must be thread-safe.  One way to achieve this would be to use a lock
+to guard access to the stack, but this is too coarse-grained and slow
+when many threads wish to modify the stack concurrently.
+
+Instead, we use a fine-grained implementation of the stack which
+optimistically attempts to operate on the stack without locking and
+then uses the compare and set primitive to check whether another
+thread interfered -- if another thread interfered, the operation is
+restarted.  If many threads operate on the stack concurrently it is
+quite likely that some of them will try to push, and some of them try
+to pop elements.  In such a situation we can omit actually adding the
+element to a stack and instantly removing it.  We can simply pass it
+from one thread to another.
+
+This is achieved by introducing a \emph{side-channel} for threads to
+communicate along.  Then, if a thread attempts to get an element from
+a stack, it will first check whether the side-channel contains an
+element (which will be called an \emph{offer}).  If so, it will take
+the offer, but if not, the thread which wishes to get an element will
+instead try to get an element from the actual stack.  A thread wishing
+to push an element will act dually; it will offer its value on the
+side-channel temporarily in an attempt to avoid having to compete for
+the main stack.  The idea is that this scheme reduces contention on
+the main atomic cell and thus improves performance.  Note that this
+means that a push operation \emph{helps} a pop operation to complete
+(and vice versa); hence we refer to this style of implementation as
+using \emph{helping} or \emph{cooperation}.\footnote{In practise, the
+  implementation of side-channels and helping is more advanced, but to illustrate
+  the challenge of verifying implementations with helping, this simple
+  form of helping suffices.}
+
+\subsection{Mailboxes for Offers}
+As described above we will use a side-channel in the stack implementation.
+This side-channel can be implemented and specified separately, and this is what we do now.
+A side-channel has the following operations:
+\begin{enumerate}
+\item An offer can be \emph{created} with an initial value.
+\item An offer can be \emph{accepted}, marking the offer as taken and returning the underlying value.
+\item Once created, an offer can be \emph{revoked} which will prevent anyone from accepting the offer and return the underlying value to the thread.
+\end{enumerate}
+Of course, all of these operations have to be thread-safe. That is, it
+must be safe for an offer to be attempted to be accepted by multiple
+threads at once, an offer needs to be able to be revoked while it is
+being accepted, and so on. We choose to represent an offer as a tuple
+of the actual value the offer contains and a reference to an int. The
+underlying integer may take one of three values, either $0$, $1$ or
+$2$. An offer of the form $(v, \ell)$ with $\ell \pointsto 0$
+is the initial state of an offer, where no one has attempted to take it, nor
+has it been revoked. Someone may attempt to take the offer in which
+case they will use a $\CAS$ to switch $\ell$ from $0$ to $1$, leading to
+the accepted state of an offer, which is $(v, \ell)$ so that
+$\ell \pointsto 1$.  Revoking is almost identical but instead of
+switching from $0$ to $1$, we switch to $2$.
+
+Since both revoking and accepting an offer demand the offer to be in the initial state it is impossible for anything other than exactly one accept or one revoke to succeed.
+Thus the state transition system illustrating the above protocol is as follows.
+\begin{center}
+  \begin{tikzpicture}[->,>=stealth',shorten >=1pt,auto,node distance=4cm,
+  thick,main node/.style={circle,draw}]
+
+  \node[main node] (1) at (0, 0)    {(-, 0)};
+  \node[main node] (2) at (4,  1.0) {(-, 1)};
+  \node[main node] (3) at (4, -1.0) {(-, 2)};
+  \path[every node/.style={font=\small}]
+  (1) edge[bend left]  node[pos=0.8, text depth=0.4cm,  left] {accept} (2)
+  edge[bend right] node[pos=0.8, text depth=-0.4cm, left] {revoke} (3);
+\end{tikzpicture}
+\end{center}
+The code of the three methods is as follows.
+\newcommand{\mkoffer}{\operatorname{mk\_offer}}
+\newcommand{\revoke}{\operatorname{revoke\_offer}}
+\newcommand{\accept}{\operatorname{accept\_offer}}
+\begin{align*}
+  \mkoffer &\eqdef \lambda v. (v, \Ref(0))\\
+  \revoke &\eqdef \lambda v. \begin{array}[t]{l}
+                               \Let u = \Proj{1}v in\\
+                               \Let s = \Proj{2}v in\\
+                               \If \CAS(s, 0, 2) then \Some u \Else \None
+                             \end{array}\\
+  \accept &\eqdef \begin{array}[t]{l}
+                    \Let u = \Proj{1}v in\\
+                    \Let s = \Proj{2}v in\\
+                    \If \CAS(s, 0, 1) then \Some u \Else \None
+                  \end{array}
+\end{align*}
+
+The pattern of offering something, immediately revoking it, and returning the value if the revoke was successful is sufficiently common that we can encapsulate it in an abstraction called a \emph{mailbox}.
+The idea is that a mailbox is built around an underlying cell containing an offer and that it provides two functions which, respectively, briefly put a new offer out and check for such an offer.
+The code for this is shown below.
+Note a small difference in the style from the three methods above.
+When the mailbox is created it does not return the underlying store, but rather returns two closures which manipulate it.
+This simplifies the process of using a mailbox for stacks where we only have one mailbox at a time, but is otherwise not an important difference.
+\newcommand{\mailbox}{\ensuremath{\operatorname{mailbox}}}
+\newcommand{\mbput}{\ensuremath{\operatorname{put}}}
+\newcommand{\mbget}{\ensuremath{\operatorname{get}}}
+\begin{align*}
+  \mailbox \eqdef \lambda \_.\, &\Let r = \Ref(\None) in\\
+  &\left(\left(\begin{array}{ll}
+      \lambda v. &\Let \operatorname{off} = \mkoffer v in\\
+                  & r \gets \Some \operatorname{off}; \revoke \operatorname{off}
+    \end{array}\right),
+    \left(\begin{array}{ll}
+       \lambda \_.&
+       \Let \operatorname{offopt} = \deref r in\\
+                  &\MatchML \operatorname{offopt} with
+                    \None=>\None|{\Some x}=>{\accept x}end{}
+          \end{array}\right)
+                    \right)
+\end{align*}
+We will call the first part of the tuple the $\mbput$ method, and the second one the $\mbget$ method.
+Note that in a real implementation we could, depending on contention, insert a small delay between making an offer and revoking it in the $\mbput$ method so that other threads would have more of a chance to accept it.
+Observe that the $\mbput$ method will return $\None$ if another thread has accepted an offer, and $\Some v$ otherwise.
+
+\subsection{The Implementation of the Stack}
+With an implementation of offers ready we can write the methods of the concurrent stack.
+As described above, we will use the mailbox as the side-channel for offers.
+The $\popS$ method will check whether the side-channel contains an offer using the $\mbget$ method, and the $\pushS$ method will make a temporary offer using the $\mbput$ method, and check the resulting value for whether the offer was accepted or not.
+The code for the stack is as follows.
+Note that this too is written in a similar style to that of mailboxes, a make function which returns two closures for the operations rather than having them separately accept a stack as an argument.
+\newcommand{\stack}{\ensuremath{\operatorname{stack}}}
+\begin{align*}
+  \stack \eqdef \lambda \_.&\\
+               &\Let \operatorname{mb} = \mailbox () in\\
+               &\Let \mbput = \Proj{1}\operatorname{mb} in\\
+               &\Let \mbget = \Proj{2} \operatorname{mb} in\\
+               &\Let r = \Ref(\None) in\\
+  &(
+    \Rec{\popS} = \MatchML{\mbget ()}with{\None}=>{\MatchML{\deref r}with{\None}=>{\None}|{\Some hd}=>{\begin{array}[t]{l}
+                                                                                                         \Let h = \Proj{1} hd in\\
+                                                                                                         \Let t = \Proj{2} hd in\\
+                                                                                                         \If \CAS(r,\Some hd,t)\\  then \Some h\\ \Else \popS \TT\end{array}}end{}}|{\Some x}=>{\Some x}end{,}\\
+  &\Rec{\pushS} = 
+    \MatchML{\mbput \TT}with{\None}=>{\TT}|{\Some n}=>{\begin{array}[t]{l}
+                                                         \Let r' = \deref r in\\
+                                                         \Let r'' = \Some (n, r') in\\
+                                                         \If \CAS(r, r', r'') then \TT\\
+                                                         \Else \pushS \TT
+                                                       \end{array}}end{)}
+\end{align*}
+
+\subsection{A Bag Specification}
+
+The specification of the concurrent stack only specifies the stack's behavior as a \emph{bag}, for reasons we described above.
+In particular the order of insertions is not reflected in the specification.
+The specification of the stack will be quite similar to the bag 
+specification from Example~\ref{example:course-grained-bag}, and thus it will be parametrized by an arbitrary predicate $\Phi$.
+Note that since we wrote our stack using higher-order functions, the specification of the stack method will involve nested Hoare triples, as we have seen in Section~\ref{sec:abstract-data-types}.
+
+\begin{align*}
+  \forall \Phi.\hoare{\TRUE}{\stack\TT}{p.\Exists \popS \pushS . \begin{array}{l}
+                                                              p = (\popS, \pushS) \ast{}\\
+                                                              \hoare{\TRUE}{\popS\TT}{v.v = \None \lor{} \Exists v' . v = \Some v' \ast \Phi(v')} \ast{}\\
+                                                              \All v . \hoare{\Phi(v)}{\pushS v}{u . u = \TT \ast \TRUE}
+                                                            \end{array}}
+\end{align*}
+
+Rather than directly verifying this specification, the proof depends on several helpful lemmas verifying the behavior of offers and mailboxes.
+By proving these simple sublemmas, the verification of concurrent stacks can respect the abstraction boundaries constructed by isolating mailboxes as we have done.
+
+\subsection{Verifying Offers}
+
+The heart of verifying offers is accurately encoding the transition system described in the previous section.
+Encoding this is quite similar to the encodings of transitions systems we have seen before in Section~\ref{sec:invar-ghost-state}.
+
+Specifically, offers will be governed by a proposition
+$\textlog{stages}$ which encodes what state of the three possibilities an offer is in.
+Ghost state is needed to ensure that certain transitions are only possible for threads with \emph{ownership} of the offer.
+To this end we use the exclusive resource algebra (Example~\ref{ex:exclusive-resource-algebra}) on the singleton set.
+We write ${\exinj(())}$ for the only valid element of this resource algebra.
+This element will act as a token giving the owner the right to transition from the original state to the revoked state.
+The proposition encoding the transition system is
+\[
+  \textlog{stages}_\gamma(v, \ell) \triangleq
+  (\Phi(v) \ast \ell \pointsto 0) \lor{}
+  \ell \pointsto 1 \lor{}
+  (\ell \pointsto 2 \ast \ownGhost{\gamma}{\exinj(())})
+\]
+Having defined this, the representation predicate $\textlog{is\_offer}$ is now within reach.
+An offer is a pair of a location containing an integer, and a value, which is the value being offered.
+Since multiple threads will share access to the offer, we use an invariant.
+\[
+  \textlog{is\_offer}_\gamma(v) \triangleq
+  \Exists v', \ell. v = (v', \ell) \ast
+  \Exists \iota. \knowInv{\iota}{\textlog{stages}_\gamma(v', \ell)}
+\]
+Notice that both of these propositions are parameterized by a ghost name, $\gamma$.
+Each $\gamma$ should uniquely correspond to an offer and represents the ownership the creator of an offer has over it, namely the right to revoke it.
+This is expressed in the specification of $\mkoffer$:
+\[
+  \All v. \hoare{\Phi(v)}{\mkoffer(v)}{u.\ \Exists \gamma. \ownGhost{\gamma}{\exinj(())} \ast \textlog{is\_offer}_\gamma(u)}
+\]
+This reads as that calling $\mkoffer$ will allocate an offer \emph{as well as} returning $\ownGhost{\gamma}{\exinj(())}$ which represents the right to revoke an offer.
+The fact that $\exinj(())$ represents the right to revoke an offer can be seen in the specification for $\revoke$:
+\[
+  \All \gamma, v.
+  \hoare{\textlog{is\_offer}_\gamma(v) \ast \ownGhost{\gamma}{\exinj(())}}
+  {\textlog{revoke\_offer}(v)}
+  {u . u = \None \lor{} \Exists v'. u =\Some(v') \ast \Phi(v')}
+\]
+The specification for $\accept$ is similar except that it does not require ownership of $\ownGhost{\gamma}{\exinj(())}$.
+This is because multiple threads may call {\tt accept\_offer} even though it will only successfully return once.
+\[
+  \All \gamma, v.
+  \hoare{\textlog{is\_offer}_\gamma(v)}
+  {\textlog{accept\_offer}(v)}
+  {u.u = \None \mathop{\lor} \Exists v'. u = \Some(v') \ast \Phi(v')}
+\]
+Proofs of these specifications are entirely straightforward based on what we have seen up until now, so we leave them to the reader.
+
+\subsection{Verifying Mailboxes}
+
+Having the specifications of offers in hand we can use them to give and prove specifications of the mailboxes.
+Since mailbox creation returns a pair of closures, specification of mailboxes will involve nested Hoare triples.
+\begin{align}
+  \label{prop:spec1:mailboxspec}
+  \begin{split}
+    \hoare{\TRUE}{\mailbox\TT}{u. 
+      \begin{array}{l}
+        \Exists \mbput \mbget.\\
+        u = (\mbput, \mbget) \ast{}\\
+        \All v. \hoare{\Phi(v)}{\mbput(v)}{w. w = \None \lor{} \Exists v'. w = \Some(v') \ast \Phi(v')}\ast{}\\
+        \hoare{\TRUE}{\mbget\TT}{w. w = \None \lor{} \Exists v'. w = \Some(v') \ast \Phi(v')}
+      \end{array}}
+    \end{split}
+\end{align}
+Note that the proof of this specification is made with no reference to the underlying implementation of offers, only to the specification described above.
+Throughout the proof an invariant is maintained governing the shared mutable cell that contains potential offers.
+This invariant enforces that when this cell is full, it contains an offer.
+It looks like this
+\[
+  \textlog{is\_mailbox}(\ell) \triangleq
+  \ell \pointsto \None \lor{}
+  \Exists v \gamma. \ell \pointsto \Some(v) \ast \textlog{is\_offer}_\gamma(v)
+\]
+This captures the informal notion described above: either the mailbox is empty, or it contains an offer.
+As above, we do not show a proof of the specification and leave it to the reader.
+
+\subsection{Verifying Stacks}
+
+We now turn to the verification of stacks themselves.
+We have already given the desired specification above, but we repeat it here for the convenience of the reader.
+\begin{align}
+  \label{prop:spec1:stack}
+  \forall \Phi.\hoare{\TRUE}{\stack\TT}{p.\Exists \popS \pushS . \begin{array}{l}
+                                                              p = (\popS, \pushS) \ast{}\\
+                                                              \hoare{\TRUE}{\popS\TT}{v.v = \None \lor{} \Exists v' . v = \Some v' \ast \Phi(v')} \ast{}\\
+                                                              \All v . \hoare{\Phi(v)}{\pushS v}{u . u = \TT \ast \TRUE}
+                                                            \end{array}}
+\end{align}
+Having verified mailboxes already only a small amount of additional preparation is needed before we can prove this specification.
+Specifically, we need an invariant governing the shared memory cell containing the stack.
+The predicate $\textlog{is\_stack}(v)$ used to form the invariant is defined as by guarded recursion as the unique predicate satisfying
+\[
+  \textlog{is\_stack}(v) \triangleq
+  v = \None \lor{} \Exists h, t. v = \Some(h, t) \ast \Phi(h) \ast \later \textlog{is\_stack}(t)
+\]
+It states that all elements of the given list satisfy the predicate $\Phi$.
+Having defined this, it is straightforward to define an assertion enforcing that a location points to a stack.
+\[
+  \textlog{stack\_inv}(\ell) \triangleq
+  \Exists v'. \ell \pointsto v' \ast \textlog{is\_stack}(v')
+\]
+We will allocate an invariant containing this assertion during the proof of the stack specification.
+With this we can now turn to proving the specification.
+
+To start the proof we use the $\ruleref{Ht-let}$ rule 
+several times, and then the 
+memory allocation rule, together with the specification of mailboxes,
+and thus we end up having to show
+\begin{align*}
+  \hoare{r \pointsto \None}{(\popS, \pushS)}{p. \Exists \popS \pushS . \begin{array}{l}
+                                                              p = (\popS, \pushS) \ast{}\\
+                                                              \hoare{\TRUE}{\popS\TT}{v.v = \None \lor{} \Exists v' . v = \Some v' \ast \Phi(v')} \ast{}\\
+                                                              \All v . \hoare{\Phi(v)}{\pushS v}{u . u = \TT \ast \TRUE}
+                                                            \end{array}}
+\end{align*}
+where $(\popS, \pushS)$ are the two methods in the body of the
+$\stack$ method.
+We should show this in a context where we have
+\begin{align*}
+  &\All v. \hoare{\Phi(v)}{\mbput(v)}{w. w = \None \lor{} \Exists v'. w = \Some(v') \ast \Phi(v')}\\
+  &\hoare{\TRUE}{\mbget\TT}{w. w = \None \lor{} \Exists v'. w = \Some(v') \ast \Phi(v')},
+\end{align*}
+the specification of the mailbox.
+Before verifying the specifications we allocate an invariant containing $\textlog{stack\_inv}$ which we can, since $r \pointsto \None$ implies $\textlog{stack\_inv}$.
+Having done this let us verify the first method, and leave the second one for the reader.
+That is, let us show
+\begin{align*}
+  \hoare{\TRUE}{\popS\TT}{v.v = \None \lor{} \Exists v' . v = \Some v' \ast \Phi(v')},
+\end{align*}
+where, of course, $\popS$ is the first method in the pair returned by
+$\stack$.
+Recall that we are verifying this a context with $\textlog{stack\_inv}$ and the above two specifications of $\mbput$ and $\mbget$ methods.
+
+Since we are proving the correctness of a recursive function, we proceed by L\"ob induction, assuming
+\begin{align*}
+  \later\hoare{\TRUE}{\popS\TT}{v.v = \None \lor{} \Exists v' . v = \Some v' \ast \Phi(v')}.
+\end{align*}
+Using the specification of the $\mbget$ method we consider two cases.
+If the result of $\mbget\TT$ is $\Some x$ we are done, since the specification of $\mbget$ gives us precisely what we need.
+This corresponds to the fact that if an offer was made on the side-channel, then we can simply take it and we are done.
+Otherwise the result of $\mbget\TT$ is $\None$ and we need to use the invariant to continue with the proof.
+We thus open the invariant $\textlog{stack\_inv}$ to read $\deref r$, after which, by using the definition of the $\textlog{stack\_inv}$ predicate, we have to consider two cases.
+If the stack is empty ($r \pointsto \None$) we are done, since the stack was empty, and thus we return $\None$, indicating that.
+Otherwise we know $r$ pointed to a pair, where $\Phi$ holds for $h$ and $t$ satisfies $\later \textlog{stack\_inv}(t)$.
+To proceed we need to open the invariant again, and after that we again consider two cases.
+\begin{itemize}
+\item If now $r \pointsto \None$, then $\CAS$ fails and we simply use the L\"ob induction hypothesis to proceed.
+\item Otherwise, $r \pointsto \Some (h', t')$, where $\Phi(h')$ and $\later\textlog{stack\_inv}(t')$ hold.
+  If the pair $(h', t')$ is equal to $(h, t)$ then $\CAS$ succeeds and we are done, since $\Phi(h)$ holds and we can close the invariant since $\textlog{stack\_inv}(t)$ holds.
+  Otherwise $\CAS$ fails and we are again done by the L\"ob induction hypothesis.
+\end{itemize}
+
+%%% Local Variables:
+%%% mode: latex
+%%% TeX-master: "../main.tex"
+%%% End:

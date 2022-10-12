@@ -1,0 +1,750 @@
+\section{Case Study: Types and Abstraction: Logical Relations in Iris}
+\label{sec:logical-relations}
+
+This section is still work-in-progress. It is closely based on~\cite{timany:logrel-in-iris};
+indeed large parts of this section are taken directly from~\cite{timany:logrel-in-iris},
+with permission from the authors.
+
+\newcommand{\EqTyp}{\mathsf{EqType}}
+\newcommand{\TheLang}{\(\mathsf{F}_{\mu, \mathit{ref}, \mathit{conc}}\)}
+\newcommand{\SAFE}{\mathit{Safe}}
+\newcommand{\lectx}{\le_{\mathit{ctx}}}
+\newcommand{\lelog}{\le_{\mathit{log}}}
+\newcommand{\valC}{u}
+\newcommand{\len}{\mathrm{length}}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Logical relations
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\newcommand{\semVtype}[3]{ \llbracket #1 \vdash #2 \rrbracket_{#3} }
+\newcommand{\semEtype}[3]{ \llbracket #1 \vdash #2 \rrbracket^{\mathcal{E}}_{#3} }
+\newcommand{\semGtype}[3]{ \llbracket #1 \vdash #2 \rrbracket^{\mathcal{G}}_{#3} }
+
+\newcommand{\cfgg}{\rho}
+\newcommand{\SpecConf}{\textrm{SpecConf}}
+\newcommand{\SpecCtx}{\textrm{SpecCtx}}
+
+\renewcommand{\qedsymbol}{$\square$}
+
+So far we have used Iris for specifying and reasoning about programs written in the
+\emph{untyped} programming language \proglang. 
+In this section we will consider a \emph{typed} programming language,
+\TheLang,  and show how we can use Iris to give semantic interpretations
+of the types of \TheLang.  
+
+In the words of Reynolds~\cite{reynolds:types}, a type system ``is a syntactic
+discipline for enforcing levels of abstraction''.
+One of the fundamental properties of a type system is type
+soundness, \ie\ that ``syntactically well-typed programs don't go wrong''~\cite{Milner:78}.
+In contrast to the properties we have considered earlier in these
+notes, where we so far have focused on properties of individual
+programs, type soundness is a language property: it is a property that 
+depends on the operational semantics and the type system for the whole
+programming language and it is a property that one proves once and 
+for all for a programming language. 
+There are different approaches to proving type soundness, most notably
+the syntactic approach based on progress and preservation lemmas (for
+textbook treatments, see, e.g.,~\cite{pierce:tapl,harper:practical-foundations}), and 
+the semantic approach where one gives a semantic model of the types 
+and proves that any syntactically well-typed program is in the
+semantic interpretation of its type. 
+
+An advantage of the semantic approach is that it gives a semantic account of the invariants
+enforced by the syntactic type system. This means that it allows one
+to \emph{combine} syntactically well-typed programs with programs which are
+semantically, but not necessarily syntactially, well-typed. This is
+important in practise since most realistic statically typed programming
+languages include some facility for interacting with programs that are
+not syntactically well typed (e.g., through foreign function call
+interfaces, or through an ``unsafe'' construct~\cite{}). 
+
+An advantage of the syntactic approach using progress and preservation
+lemmas is that it scales well to advanced type systems including
+impredicative polymorphism, recursive types, and general reference
+types. In contrast, an often-cited challenge with the semantic
+approach is that it is non-trivial to define semantic interpretations of advanced type
+systems (because the semantic models need to support recursive
+definitions and impredicative invariants). 
+
+In this section we show that \emph{by interpreting types as 
+Iris propositions it is straightforward to give a semantic
+interpretation of types}, and prove that all syntactically well-typed
+programs are in the appropriate semantic interpretation. Moreover,
+we can also use Iris to show semantic well-typedness of 
+programs that are not syntactically well-typed.
+
+The key point is that we can exploit Iris features such as invariants, persistence, and the possibility of defining predicates by guarded recursion to give a simple inductive definition of the interpretation of all the types of \TheLang, which include challenging types such as impredicative polymorpic types, recursive types, and general reference types.
+We focus on type soundness in Subsection~\ref{sec:unary-logical-relation}.
+
+Another advantage of the semantic approach is that it can be
+generalized to give a \emph{relational interpretation} of types, which
+is useful for proving contextual refinement and data abstraction results.
+It is well-known that relational models for showing contextual refinement are also
+non-trivial to construct. Moreover, it is particularly challenging to
+construct relational models which are sufficiently powerful to allow
+one to prove relatedness of programs that use state and concurrency in
+very different ways. Using Iris, however, we can addresss both of
+these challenges. Indeed, in~\cite{timany:logrel-in-iris} a relational
+interpretation of the types of \TheLang\ is also defined, by
+interpreting types as Iris relations. Moreover, it is shown that the
+relational interpretation is expressive enough to allow one to prove
+challenging examples of program refinements. For example, it is proved
+that a fine-grained concurrent stack module is a contextual refinement of a
+coarse-grained stack module. 
+In light of the fact that we so far only used Iris for reasoning about a
+single program at a time, it is perhaps somewhat surprising that we can also
+use Iris to relate two different programs.  Thus, in
+Subsection~\ref{sec:binary-logical-relation} we sketch the key idea of
+how this can be done. 
+However, we do not include a full description of the relational
+model, but instead refer the reader to~\cite{timany:logrel-in-iris}. 
+
+
+\subsection{The language \texorpdfstring{\TheLang}{Fmurefconc}}
+\TheLang\, is mostly as \proglang, the main exception being that it is a typed languages. We have all the same values and expressions as before with a few additions: 
+\begin{itemize}
+\item \langkw{fold} and \langkw{unfold} respectively fold and unfold expressions of recursive types.
+\item $\Lambda$ is a type-level lambda abstraction.
+\end{itemize}
+\begin{figure}[htbp]
+\textbf{Syntax}
+\begin{displaymath}
+  \begin{array}{lrcl}
+\Val\quad
+& \val & \bnfdef{}&
+ \cdots
+ \ALT \langkw{fold}\, \val
+ \ALT \Lambda \, \expr
+\\
+%
+\Expr \quad
+& \expr & \bnfdef{} &
+ \cdots
+ \ALT \langkw{fold} \, \expr
+ \ALT \langkw{unfold} \, \expr
+ \ALT \Lambda \, \expr 
+ \ALT \expr \, \_
+\\
+%
+\ECtx\quad
+& E & \bnfdef{}& 
+ \cdots
+ \ALT \langkw{fold} \, E
+ \ALT \langkw{unfold} \, E
+ \ALT E \, \_ 
+ \\
+%
+ Types \quad & \typ & \bnfdef{}& 
+ X
+ \ALT 1
+ \ALT \nat
+ \ALT \mathbb{B}
+ \ALT \typ \to \typ
+ \ALT \All X. \typ
+ \ALT \typ \times \typ
+ \ALT \typ + \typ
+ \ALT \mu X. \typ
+ \ALT ref \typ
+\\
+%
+\end{array}
+\end{displaymath}
+\end{figure}
+We have the same reductions as \proglang{} with the addition of the following two pure reductions:
+
+\begin{align*}
+ \left( \Lambda \, \expr \right)\, \_ &\stepstopure \expr \\
+ \langkw{unfold}\, (\langkw{fold}\, \val) &\stepstopure \val
+\end{align*}
+
+
+As the weakest precondition is defined from the operational semantics, we get the same wp-rules as in Figure~\ref{fig:wp-rules} with the addition of the following two rules, corresponding to our two new reductions:
+
+\begin{mathpar}
+\inferH{wp-Tlam}{}{\later \wpre{\expr}[\mask]{\pred}\proves \wpre{(\TLam \expr)~\_}[\mask]{\pred}}
+\and
+\inferH{wp-fold}{}{\later \wpre{\val}[\mask]{\pred}\proves \wpre{\unfold(\fold \val)}[\mask]{\pred}}
+\end{mathpar}
+
+To make \TheLang\, a typed language, we naturally need some typing rules. These are fairly standard (see~\cite{pierce:tapl,harper:practical-foundations})
+and given in Figure~\ref {fig:logrel-iris-typing-rules}.
+
+
+\begin{figure}
+\begin{mathparpagebreakable}
+  \inferH{T-var}{\var : \typ \in \env}{\typed{\Tenv}{\env}{\var}{\typ}}
+  \and
+  \inferH{T-Unit}{}{\typed{\Tenv}{\env}{\TT}{\Tunit}}
+  \and
+  \inferH{T-Nat}{}{\typed{\Tenv}{\env}{n}{\Tnat}}
+  \and
+  \inferH{T-Bool}{\val \in \set{\True, \False}}{\typed{\Tenv}{\env}{\val}{\Tbool}}
+  \and
+  \inferH{T-rec}{\typed{\Tenv}{\env, \var : \typ, f : \typ \to \typ'}{\expr}{\typ'}}
+  {\typed{\Tenv}{\env}{\Rec f \var = \expr}{\typ \to \typ'}}
+  \and
+  \inferH{T-app}{\typed{\Tenv}{\env}{\expr_1}{\typ \to \typ'} \and \typed{\Tenv}{\env}{\expr_2}{\typ}}
+  {\typed{\Tenv}{\env}{\expr_1~\expr_2}{\typ'}}
+  \and
+  \inferH{T-tlam}{\typed{\Tenv, \tvar}{\env}{\expr}{\typ}}
+  {\typed{\Tenv}{\env}{\TLam \expr}{\Tall \tvar. \typ}}
+  \and
+  \inferH{T-tapp}{\typed{\Tenv}{\env}{\expr}{\Tall \tvar. \typ}}
+  {\typed{\Tenv}{\env}{\expr~\_}{\subst{\typ}{\tvar}{\typ'}}}
+  \and
+  \inferH{T-if}{\typed{\Tenv}{\env}{\expr}{\Tbool} \and
+    \typed{\Tenv}{\env}{\expr_{i}}{\typ} \and i \in \set{1, 2}}
+  {\typed{\Tenv}{\env}{\If \expr then \expr_1 \Else \expr_2}{\typ}}
+  \and
+  \inferH{T-pair}{\typed{\Tenv}{\env}{\expr_1}{\typ_1} \and \typed{\Tenv}{\env}{\expr_2}{\typ_2}}
+  {\typed{\Tenv}{\env}{(\expr_1, \expr_2)}{\typ_1 \times \typ_2}}
+  \and
+  \inferH{T-proj}{\typed{\Tenv}{\env}{\expr}{\typ_1 \times \typ_2} \and i \in \set{1, 2}}
+  {\typed{\Tenv}{\env}{\Proj{i} \expr}{\typ_{i}}}
+  \and
+  \inferH{T-inj}{\typed{\Tenv}{\env}{\expr}{\typ_{i}} \and i \in \set{1, 2}}
+  {\typed{\Tenv}{\env}{\Inj{i} \expr}{\typ_1 + \typ_2}}
+  \and
+  \inferH{T-match}{\typed{\Tenv}{\env}{\expr}{\typ_1 + \typ_2} \and
+    \typed{\Tenv}{\env, \var : \typ_{i}}{\expr_{i}}{\typ_3} \and i \in \set{1, 2}}
+  {\typed{\Tenv}{\env}{\MatchS \expr with \Inj{i} \var => \expr_i end}{\typ_3}}
+  \and
+  \inferH{T-fold}{\typed{\Tenv}{\env}{\expr}{\subst{\typ}{\tvar}{\Tmu \tvar. \typ}}}
+  {\typed{\Tenv}{\env}{\fold \expr}{\Tmu \tvar. \typ}}
+  \and
+  \inferH{T-unfold}{\typed{\Tenv}{\env}{\expr}{\Tmu \tvar. \typ}}
+  {\typed{\Tenv}{\env}{\unfold \expr}{\subst{\typ}{\tvar}{\Tmu \tvar. \typ}}}
+  \and
+  \inferH{T-alloc}{\typed{\Tenv}{\env}{\expr}{\typ}}
+  {\typed{\Tenv}{\env}{\Ref(\expr)}{\Tref(\typ)}}
+  \and
+  \inferH{T-load}{\typed{\Tenv}{\env}{\expr}{\Tref(\typ)}}
+  {\typed{\Tenv}{\env}{\deref \expr}{\typ}}
+  \and
+  \inferH{T-store}{\typed{\Tenv}{\env}{\expr_1}{\Ref(\typ)} \and \typed{\Tenv}{\env}{\expr_2}{\typ}}
+  {\typed{\Tenv}{\env}{\expr_1 \gets \expr_2}{\Tunit}}
+  \and
+  \inferH{T-CAS}{\typed{\Tenv}{\env}{\expr_1}{\Ref(\typ)} \and \typed{\Tenv}{\env}{\expr_2}{\typ}
+    \and \typed{\Tenv}{\env}{\expr_3}{\typ} \and \EqTyp(\typ)}
+  {\typed{\Tenv}{\env}{\CAS(\expr_1, \expr_2, \expr_3)}{\Tbool}}
+  \and
+  \inferH{EqTyp-unit}{}{\EqTyp(\Tunit)}
+  \and
+  \inferH{EqTyp-nat}{}{\EqTyp(\Tnat)}
+  \and
+  \inferH{EqTyp-bool}{}{\EqTyp(\Tbool)}
+  \and
+  \inferH{EqTyp-ref}{}{\EqTyp(\Tref(\typ))}
+  \and
+  \inferH{T-fork}{\typed{\Tenv}{\env}{\expr}{\typ}}
+  {\typed{\Tenv}{\env}{\Fork{\expr}}{\Tunit}}
+\end{mathparpagebreakable}
+\caption{The typing rules of \TheLang{}.}
+\label{fig:logrel-iris-typing-rules}
+\end{figure}
+
+Our goal is to prove type safety, hence we need a notion of safety. Here we will use the following definition:
+
+\paragraph{Safety} We say a program $\expr$ is safe, written
+$\SAFE(\expr)$, if it does not get stuck.
+In more detail, $\expr$ is safe if, for all expressions $\expr'$ that $\expr$ or one
+of the child thread of $\expr$ has evaluated to, $\expr'$ is either a value or it
+can be evaluated further by making a head step, or by forking a thread.
+This is formally defined as follows:
+\begin{align*}
+  \SAFE(\expr) \eqdef{}
+  & \All \expr', \vv{\expr_1}, \vv{\expr_2}, \state.\; (\emptyset,
+    \expr) \tpstep ^{*} (\state, \vv{\expr_1};\expr';\vv{\expr_2}) \Rightarrow \\
+  & \expr' \in \Val \lor (\exists \expr'', \state'.\; (\state, \vv{\expr_1};\expr';\vv{\expr_2})
+    \tpstep (\state', \vv{\expr_1};\expr'';\vv{\expr_2})) \lor \\
+  & (\exists \expr'', \state', \expr_3.\; (\state, \vv{\expr_1};\expr'; \vv{\expr_2})
+    \tpstep (\state', \vv{\expr_1};\expr'';\vv{\expr_2}; \expr_3))
+\end{align*}
+
+
+\subsection{Unary Logical relation}
+\label{sec:unary-logical-relation}
+
+% Note: This entire subsection is taken almost verbatim
+% from~\cite{timany:logrel-in-iris}.
+
+In this section we define a unary logical relations model for
+\TheLang\, and use it to prove the type soundness theorem.  That is,
+for each type we define a logical relation. We show that each
+well-typed program is in the relation for its type. Furthermore, we
+show that programs in the logical relation for a type have
+well-defined behavior, \ie\ they do not get stuck. The type soundness
+theorem is a direct consequence of these two facts.
+
+We define the logical relations in three stages. We first define a
+relation for \emph{closed} values of a type by induction on types. We
+then use the value relations to define relations on \emph{closed}
+expressions. Intuitively, a closed expression is in the relation for a
+type $\typ$ if it is a computation that results in a value that is in
+the value relation for the type $\typ$. Finally, we define \emph{the
+  logical relation} for (open) expressions based on the expression
+relations and the value relations above.
+
+\TheLang\, features polymorphism. Hence, types can have free type
+variables. Thus, we index the relations on closed values and
+expressions with a map, $\semenv$, which assigns a semantic type (a
+value relation) to each free type variable. That is, for each type
+$\typ$ we define the value relation
+$\semVtype{\Tenv}{\typ}{\semenv} : \Val \to \Prop$ where
+$\semenv : \Tenv \to \Val \to \Prop$. The full definition of the
+value relations for types is given in
+Figure~\ref{fig:logrel-in-iris-unary-valrel}. We will discuss them in
+detail below. Before that we discuss how value relations are extended
+to expression relation on closed and subsequently open expressions.
+
+Intuitively, a closed expression is in the expression relation for a
+type $\typ$ if it computes a result that is in the value relation for
+the type $\typ$. We define the expression relation,
+$\semEtype{\Tenv}{\typ}{\semenv} : \Expr \to \Prop$, using 
+weakest preconditions, as follows:
+\[
+\semEtype{\Tenv}{\typ}{\semenv}(\expr) \eqdef{} \wpre{\expr}{\semVtype{\Tenv}{\typ}{\semenv}}
+\]
+
+In order to formally define the logical relation for open expressions
+we first define a relation, $\semGtype{\Tenv}{\cdot}{\semenv}$, for
+typing contexts. Intuitively, a list a values, $\vv{\val}$, is in the
+relation for a typing context, $\env$, if each value in $\vv{\val}$ is
+in the value relation for the type corresponding to it in $\env$. The
+formal definition of the typing-context relation is given below. Here,
+$\epsilon$ is the empty list of values.
+\begin{align*}
+  \semGtype{\Tenv}{\cdot}{\semenv}(\epsilon) \eqdef{}
+  & \top\\
+  \semGtype{\Tenv}{\env, \var : \typ}{\semenv}(\vv{\val}, \valB) \eqdef{}
+  & \semGtype{\Tenv}{\env}{\semenv}(\vv{\val}) \ast
+    \semVtype{\Tenv}{\typ}{\semenv}(\valB)
+\end{align*}
+
+Let $\Tenv$, $\env$, $\expr$ and $\typ$ be such that all free
+variables of $\expr$ are in the domain of $\env$ and all free type
+variables that appear in $\env$ or $\typ$ are in $\Tenv$. Then, we
+write $\semtyped{\Tenv}{\env}{\expr}{\typ}$ to express that the
+expression $\expr$ is in the logical relation for type $\typ$ under
+the typing contexts $\env$ and $\Tenv$. This relation is defined as
+follows:
+\[
+  \semtyped{\Tenv}{\env}{\expr}{\typ} \eqdef{} \forall \semenv,
+  \vv{\val}.\; \semGtype{\Tenv}{\env}{\semenv}(\vv{\val}) \proves
+  \semEtype{\Tenv}{\typ}{\semenv}\left(\subst{\expr}{\vv{\var}}{\vv{\val}}\right)
+\]
+
+The value relation for types are given in
+Figure~\ref{fig:logrel-in-iris-unary-valrel}. One important aspect of
+the type system of \TheLang\, is that it is intuitionistic, \ie\
+values, e.g., function arguments, can be used multiple times. Thus, it
+is crucial that the value relation of all types are \emph{persistent}
+and hence duplicable. The persistence modality and the side-condition
+$\persistent{\predB}$ in Figure~\ref{fig:logrel-in-iris-unary-valrel}
+are added to ensure the persistence of value relations.
+
+\begin{figure}
+\begin{align*}
+  \semVtype{\Tenv}{\tvar}{\semenv} \eqdef{}
+  & \semenv(\tvar)\\
+  \semVtype{\Tenv}{\Tunit}{\semenv}(\val) \eqdef{}
+  & \val = \TT\\
+  \semVtype{\Tenv}{\Tnat}{\semenv}(\val) \eqdef{}
+  & \exists n \in \nat.\; \val = n\\
+  \semVtype{\Tenv}{\Tbool}{\semenv}(\val) \eqdef{}
+  & \val \in \set{\True, \False}\\
+  \semVtype{\Tenv}{\typ_1 \times \typ_2}{\semenv}(\val) \eqdef{}
+  & \exists \val_1, \val_2.\; \val = (\val_1, \val_2) \ast
+    \semVtype{\Tenv}{\typ_1}{\semenv}(\val_1) \ast \semVtype{\Tenv}{\typ_2}{\semenv}(\val_2)\\
+  \semVtype{\Tenv}{\typ_1 + \typ_2}{\semenv}(\val) \eqdef{}
+  & \bigvee_{i \in \set{1,2}} \exists \valB.\; \val = \Inj{i} \valB \ast \semVtype{\Tenv}{\typ_i}{\semenv}(\valB)\\
+  \semVtype{\Tenv}{\typ \to \typ'}{\semenv}(\val) \eqdef{}
+  & \persistently \left(\forall \valB.\; \semVtype{\Tenv}{\typ}{\semenv}(\valB) \wand 
+    \semEtype{\Tenv}{\typ'}{\semenv}(\val~\valB) \right) \\
+  \semVtype{\Tenv}{\Tmu \tvar. \typ}{\semenv}(\val) \eqdef{}
+  & \mu \predB.\; \exists \valB.\; \val = \fold \valB \land
+    \later \semVtype{\Tenv}{\typ}{\semenv, \tvar \mapsto \predB}(\valB) \\
+  \semVtype{\Tenv}{\Tall \tvar. \typ}{\semenv}(\val) \eqdef{}
+  & \persistently\left(\forall \predB.\; \persistent{\predB} \Rightarrow
+    \semEtype{\Tenv, \tvar}{\typ}{\semenv, \tvar \mapsto \predB}(\val~\_)\right)\\
+  \semVtype{\Tenv}{\Tref(\typ)}{\semenv}(\val) \eqdef{}
+  & \exists \loc.\; \val = \loc \land
+    \knowInv{\namesp.\loc}{\exists \valB.\; \loc \mapsto \valB \ast
+    \semVtype{\Tenv}{\typ}{\semenv}(\valB)}
+\end{align*}
+\caption{The unary value relation for types of \TheLang{}.}
+\label{fig:logrel-in-iris-unary-valrel}
+\end{figure}
+
+The value relation for type variables is given by $\semenv$. A value
+is in the relation for the unit type if it is $\TT$. A values is in
+the relation for the type of natural numbers if it is simply a natural
+number; similarly for booleans. A value is in the relation for the
+product type if it is a pair of values each in their respective
+types. A value of the sum type $\typ + \typ'$, on the other hand, is
+either a value in the relation for $\typ$ or one in the relation for
+$\typ'$. The value relation for recursive types is defined using
+Iris's guarded recursive predicates. A value is in the relation for
+a recursive type if it is of the form $\fold \valB$ such that the
+value $\valB$ is, \emph{one step of the computation later}, in the
+relation for the recursive type. Notice, however, that unfolding a
+folded value takes a step of computation. A memory location is in the
+relation for a reference type, $\Tref(\typ)$, if it \emph{invariantly}
+stores a value that is in the value relation for $\typ$.
+
+A value $\val$ in the relation for the function type $\typ \to \typ'$
+if whenever $\val$ is applied to a value $\valB$, in the relation for
+$\typ$, the resulting expression, $\val~\valB$, is in the
+\emph{expression} relation for $\typ'$. A value is in the relation for
+the type $\Tall \tvar. \typ$ if, when instantiated, the resulting
+\emph{expression} is in the expression relation for $\typ$ where the
+interpretation for $\tvar$ is taken to be any \emph{persistent}
+predicate.
+
+\begin{lemma} \label{lem:unary-interp-weaken} Let $\typ$ be a type
+  such that all its free type variables appear in $\Tenv$.
+  Furthermore, let $\tvar$ be a type variable such that
+  $\tvar \notin \Tenv$ and let $\semenv$ be an interpretation for
+  type variables in $\Tenv$. It follows that
+  \[\semVtype{\Tenv}{\typ}{\semenv}(\val) \provesIff \semVtype{\Tenv,
+      \tvar}{\typ}{\semenv, \tvar \mapsto \predB}(\val)
+  \] for any predicate $\predB$ and value $\val$.
+\end{lemma}
+\begin{proof}
+  By induction on the structure of $\typ$.
+\end{proof}
+
+\begin{lemma} \label{lem:unary-interp-env-weaken} Let $\env$ be a typing context
+  such that all free type variables of $\env$ appear in
+  $\Tenv$. Furthermore, let $\tvar$ be a type variable such that
+  $\tvar \notin \Tenv$ and let $\semenv$ be an interpretation for
+  type variables in $\Tenv$. It follows that
+  \[\semGtype{\Tenv}{\env}{\semenv}(\vv{\val}) \provesIff \semGtype{\Tenv,
+      \tvar}{\env}{\semenv, \tvar \mapsto \predB}(\vv{\val})
+  \] for any predicate $\predB$ and sequence of values $\vv{\val}$.
+\end{lemma}
+\begin{proof}
+  By induction on the length of $\env$ using Lemma~\ref{lem:unary-interp-weaken}.
+\end{proof}
+
+\begin{theorem}[Fundamental theorem of unary logical relations]\label{thm:unaryfundamental}
+  All well-typed terms are in the logical relation.
+  \[\text{If }~ \typed{\Tenv}{\env}{\expr}{\typ} ~\text{ then }~ \semtyped{\Tenv}{\env}{\expr}{\typ}\]
+\end{theorem}
+\begin{proof}
+  By induction on the typing derivation. All cases follow from the
+  inference rules of weakest preconditions presented in
+  Section~\ref{sec:weakest-pre}. Here, we present a few cases of
+  this proof.
+  \begin{itemize}
+  \item[--] Case \ruleref{T-alloc}: For this case, given
+    $\semenv : \Tenv \to \Val \to \Prop$ and a list of values
+    $\vv{\val}$ such that
+    $\semGtype{\Tenv}{\env}{\semenv}(\vv{\val})$, we need to show
+    assuming
+    \begin{align}
+      \wpre{\subst{\expr}{\vv{\var}}{\vv{\val}}}{\semVtype{\Tenv}{\typ}{\semenv}} \label{eqn:unary-Tref-alloc-rel}
+    \end{align}
+    that the following holds:
+    \[ \wpre{\Ref(\subst{\expr}{\vv{\var}}{\vv{\val}})}{\var.  \exists
+        \loc.\; \var = \loc \land \knowInv{\namesp.\loc}{\exists
+          \valB.\; \loc \mapsto \valB \ast
+          \semVtype{\Tenv}{\typ}{\semenv}(\valB)}} \]
+
+    We use the rule~\ruleref{wp-bind} together with the assumption
+    \eqref{eqn:unary-Tref-alloc-rel} above. Consequently, we need to
+    show that given some arbitrary value $\val$ such that
+    \begin{align}
+      \semVtype{\Tenv}{\typ}{\semenv}(\val) \label{eqn:unary-Tref-pointsto}
+    \end{align}
+    we have
+    \[\wpre{\Ref(\val)}{\var.  \exists \loc.\; \var = \loc \land
+        \knowInv{\namesp.\loc}{\exists \valB.\; \loc \mapsto \valB
+          \ast \semVtype{\Tenv}{\typ}{\semenv}(\valB)}} \]
+    We proceed by applying the rule~\ruleref{wp-alloc} which requires
+    us to show:
+    \[
+      \later \forall \loc'.\; \loc' \mapsto \val \wand
+      \wpre{\loc'}{\var.  \exists \loc.\; \var = \loc \land
+        \knowInv{\namesp.\loc}{\exists \valB.\; \loc \mapsto \valB
+          \ast \semVtype{\Tenv}{\typ}{\semenv}(\valB)}}
+    \]
+    This follows easily from the rules~\ruleref{wp-val} and
+    \ruleref{Inv-alloc} together with assumption
+    \eqref{eqn:unary-Tref-pointsto} above.
+
+  \item[--] Case \ruleref{T-rec}: For this case, given
+    $\semenv : \Tenv \to \Val \to \Prop$ and a list of values
+    $\vv{\val}$ such that
+    $\semGtype{\Tenv}{\env}{\semenv}(\vv{\val})$, we need to show
+    assuming
+    \begin{align}
+      \forall \val, \valC.\; \semVtype{\Tenv}{\typ}{\semenv}(\val) \ast
+      \semVtype{\Tenv}{\typ \to \typ'}{\semenv}(\valC) \wand
+      \wpre{\subst{(\subst{\expr}{\vv{\var}}{\vv{\val}})}{\var, f}{\val,
+      \valC}}{\semVtype{\Tenv}{\typ'}{\semenv}} \label{eqn:unary-body-rel}
+    \end{align}
+    that the following holds:
+    \[\wpre{\Rec f x = \subst{\expr}{\vv{\var}}{\vv{\val}}}{\var.\;
+        \persistently\left(\forall \valB.\;
+          \semVtype{\Tenv}{\typ}{\semenv}(\valB) \wand
+          \semEtype{\Tenv}{\typ'}{\semenv}(\var~\valB)\right)}\]
+    By the rule~\ruleref{wp-val} it suffices to show:\footnote{We
+      can introduce the persistence modality because all assumptions
+      are persistent.}
+  \[\forall w.\; \semVtype{\Tenv}{\typ}{\semenv}(\valB) \wand
+    \semEtype{\Tenv}{\typ'}{\semenv}((\Rec f x =
+    \subst{\expr}{\vv{\var}}{\vv{\val}})~\valB)\] Note the operational
+  semantics pertaining to calling a recursive functions. The
+  expression
+  \[(\Rec f x = \subst{\expr}{\vv{\var}}{\vv{\val}})~\valB\] reduces
+  to the expression
+  \[\subst{(\subst{\expr}{\vv{\var}}{\vv{\val}})}{\var, f}{\valB, \Rec
+    f x = \subst{\expr}{\vv{\var}}{\vv{\val}}}\] in a single step of
+computation. Hence, if we know that
+$\semVtype{\Tenv}{\typ \to \typ'}{\semenv}(\Rec f x =
+\subst{\expr}{\vv{\var}}{\vv{\val}})$ holds we can use the assumption
+\eqref{eqn:unary-body-rel} above to finish the proof. However, this is
+exactly what we have to show but crucially we only need this
+\emph{after one step of computation}, intuitively because a recursive
+call can only occur inside the body, after the current call. Hence, to
+finish the proof we use the~{L{\"o}b}
+rule. Consequently we get to assume the following L\"ob induction
+hypothesis \eqref{eqn:unary-loeb-ind-hyp-in-proof-of-Trec}.
+  \begin{align*}
+    \later \forall w.\; \semVtype{\Tenv}{\typ}{\semenv}(\valB) \wand
+    \semEtype{\Tenv}{\typ'}{\semenv}((\Rec f x =
+    \subst{\expr}{\vv{\var}}{\vv{\val}})~\valB)
+    \tag{IH}\label{eqn:unary-loeb-ind-hyp-in-proof-of-Trec}
+  \end{align*}
+  We finish the proof using the rule~\ruleref{wp-rec} which requires
+  us to show the following for some arbitrary value $\valB$ for which
+  we have $\semVtype{\Tenv}{\typ}{\semenv}(\valB)$:
+  \[ \later \wpre{\subst{(\subst{\expr}{\vv{\var}}{\vv{\val}})}{\var,
+        f}{\valB, \Rec f x = \subst{\expr}{\vv{\var}}{\vv{\val}}}}
+    {\semVtype{\Tenv}{\typ'}{\semenv}} \] This follows easily from our
+  assumptions and the L\"ob induction hypothesis,
+  \eqref{eqn:unary-loeb-ind-hyp-in-proof-of-Trec}, above.
+\item[--] Case \ruleref{T-tlam}: For this case, given
+  $\semenv : \Tenv \to \Val \to \Prop$ and a list of values
+  $\vv{\val}$ such that $\semGtype{\Tenv}{\env}{\semenv}(\vv{\val})$,
+  we need to show assuming
+    \begin{align}
+      \forall \predB.\; \semGtype{\Tenv, \tvar}{\env}
+      {\semenv, \tvar \mapsto \predB}(\vv{\val}) \proves
+      \wpre{\subst{\expr}{\vv{\var}}{\vv{\val}}}{\semVtype{\Tenv, \tvar}{\typ'}
+      {\semenv, \tvar \mapsto \predB}}
+      \label{eqn:unary-tlam-body-rel}
+    \end{align}
+    that the following holds:
+   \begin{align*}
+     \wpre{\subst{\TLam \expr}{\vv{\var}}{\vv{\val}}}{\var.\;
+     \persistently\left(\forall \predB.\; \persistent{\predB} \Rightarrow
+     \semEtype{\Tenv, \tvar}{\typ}{\semenv, \tvar \mapsto \predB}(\val~\_)\right)}
+   \end{align*}
+
+   Since $\TLam \subst{\expr}{\vv{\var}}{\vv{\val}}$ is a value, we
+   use the rule~\ruleref{wp-val}. Hence, it suffices to show the
+   following for some arbitrary but fixed $\predB$ such that
+   $\persistent{\predB}$:
+   \[\semEtype{\Tenv, \tvar}{\typ}{\semenv, \tvar \mapsto\predB}
+     ((\TLam \subst{\expr}{\vv{\var}}{\vv{\val}})~\_)\] Note that here
+   we can introduce the persistence modality as none of our
+   assumptions assert any ownership. Unfolding the expression relation
+   in the above formula reveals that we need to show:
+   \[\wpre{(\TLam \subst{\expr}{\vv{\var}}{\vv{\val}})~\_}
+     {\semVtype{\Tenv, \tvar}{\typ}{\semenv, \tvar \mapsto \predB}}
+   \]
+   To prove this, we proceed by applying the rule~\ruleref{wp-Tlam}
+   and as a result need to show:
+   \[\later \wpre{\subst{\expr}{\vv{\var}}{\vv{\val}}}
+     {\semVtype{\Tenv, \tvar}{\typ}{\semenv, \tvar \mapsto \predB}}\]
+   Finally, we can finish the proof by appealing to assumption
+   \eqref{eqn:unary-tlam-body-rel}. We only need to show
+   $\semGtype{\Tenv, \tvar}{\env}{\semenv, \tvar \mapsto
+     \predB}(\vv{\val})$ while we have
+   $\semGtype{\Tenv}{\env}{\semenv}(\vv{\val})$. However, this follows
+   from Lemma~\ref{lem:unary-interp-env-weaken}.
+\end{itemize}
+\end{proof}
+
+
+\begin{lemma}[Adequacy of unary logical relations]\label{thm:unaryadequacy}
+  Let $\expr$ be an expression such that
+  $\semEtype{\Tenv}{\typ}{\semenv}(\expr)$. Then, $\expr$ is safe,
+  $\SAFE(\expr)$.
+\end{lemma}
+
+\begin{proof}
+  This lemma is a direct consequence of the adequacy theorem, see~\cite{iris-ground-up}.
+\end{proof}
+
+\begin{theorem}[Soundness of unary logical relations] All closed
+  well-typed programs of \TheLang\, are safe:
+  \[\text{If }~ \typed{\cdot}{\cdot}{\expr}{\typ} ~\text{ then }~ \SAFE(\expr) \]
+\end{theorem}
+
+\begin{proof}
+  By the fundamental theorem of unary logical relation,
+  Theorem~\ref{thm:unaryfundamental}, we know that
+  \[ \semtyped{\cdot}{\cdot}{\expr}{\typ} \]
+  Expanding the definition of unary logical relations we get
+  \[ \forall \semenv, \vv{\val}.\;
+    \semGtype{\cdot}{\cdot}{\semenv}(\vv{\val}) \proves
+    \semEtype{\cdot}{\typ}{\semenv}\left(\subst{\expr}{\vv{\var}}{\vv{\val}}\right) \]
+  We take $\semenv = \emptyset$ and $\vv{\val} = \epsilon$ which gives us
+  \[ \semGtype{\cdot}{\cdot}{\emptyset}(\epsilon) \proves
+    \semEtype{\cdot}{\typ}{\semenv}\left(\subst{\expr}{\epsilon}{\epsilon}\right) \]
+  which immediately simplifies to
+  $\semEtype{\cdot}{\typ}{\semenv}(\expr)$. By
+  Theorem~\ref{thm:unaryadequacy}, we get $\SAFE(\expr)$, as required.
+\end{proof}
+
+The logical relations model presented in this section is modular. For
+instance, a well-typed function of type $\typ \to \typ'$ (which by the
+fundamental theorem falls in the logical relation) can be applied to
+any expression that is the logical relations for $\typ$ and the result
+is in the logical relation for $\typ'$. On the other hand, our logical
+relations model is defined in terms of untyped expressions. This means
+that our logical relations model can be used to prove safety of
+programs that mix well-typed code with untyped code as long as we show
+that the untyped code is \emph{semantically well-typed}, \ie\ the
+untyped code is in the logical relations for the appropriate type. As
+an example of a program that is \emph{not} well-typed but is
+nonetheless semantically well-typed consider the following:
+\begin{align*}
+  \TLam \TLam (\Lam f. \Lam \var. \Lam g. \Lam \varB.
+  & \Let l = \Ref(\True) in \Fork{l \gets \False}; \\
+  & \If \deref l then \operatorname{waitfor}~l; l \gets \var; \Inj{1} (f~l) \Else l \gets \varB; \Inj{2}(g~l))
+\intertext{where}
+& \operatorname{waitfor} \eqdef \Rec f \var = \If \deref \var then f~\var \Else \TT
+\end{align*}
+
+This program does not syntactically have the type
+\[\Tall \tvar. \Tall \tvarB. (\Tref(\tvar) \to \tvar) \to \tvar
+  \to (\Tref(\tvarB) \to \tvarB) \to \tvarB \to \tvar + \tvarB\] 
+  but
+it \emph{semantically} does. This program allocates a boolean
+reference and uses it to non-determi-nistically call $f$ or $g$. In
+each case it changes the reference that it has already allocated with
+the given value of the appropriate type before passing it to the
+chosen function. In case the decision is made to call the first
+function, \ie\ the other thread has not succeeded in the race, it
+waits for the other thread to finish. This is to ensure that the other
+thread writing to the reference $l$ is not going to destroy the
+contents of $l$ at some later point. Despite not being syntactically
+well-typed one can show that the program above is semantically of the
+type given. Hence, this program can be \emph{safely} linked against
+any other (syntactically or semantically) well-typed program with
+compatible type. 
+
+\subsection{Binary logical relation for contextual refinement}
+\label{sec:binary-logical-relation}
+
+In~\cite{timany:logrel-in-iris} the authors also define a binary logical relations model for \TheLang\ and prove that logical relatedness implies contextual refinement.
+
+Many of the ideas from the unary case carry over to the binary case, \eg\ the binary value interpretation is a straightforward modification of the unary value interpretation. 
+The expression interpretation, however, is quiet different: in the unary case, it sufficed to use a simple weakest precondition definition, but now, in the binary case,
+the challenge is to find a way to relate two (different) expressions.
+In this section, we sketch the key ideas of how one can define a relational model. We do not include the full definition of the binary logical relation, but instead refer the
+reader to~\cite{timany:logrel-in-iris}.
+
+In the relational model, the goal is to define a logical relation, such that if $\expr$ is logically related to $\expr'$ then $\expr$ contextually refines $\expr'$.
+We often refer to the expression ``on the left'', $\expr$, as the implementation side expression and the expression ``on the right'', $\expr'$, as the specification side expression. 
+To define the relational models, we need a way to 
+refer to (the heap and different threads of) the program on the
+specification side ``that is about to be executed''. The intuitive
+definition of two expressions being related is as follows:
+\begin{quote}
+  \emph{
+  An expressions $\expr$ (the
+  implementation side) is related to an expression $\expr'$ (the
+  specification side) if we have:
+  \begin{align*}
+    \forall j, \lctx.\;
+    & \text{``thread $j$ is about to execute $\lctx[\expr']$''}~ \wand\\
+    & \wpre{\expr}{\exists \val'.\; \text{``thread $j$
+      is about to execute $\lctx[\val']$''}}
+  \end{align*}
+}
+\end{quote}
+%
+This relation between $\expr$ and $\expr'$ reads as follows: if thread
+$j$ is about to execute $\expr'$ under some evaluation context $\lctx$
+on the specification side and $\expr$ reduces to a value, then there
+is a value $\val'$ such that the specification side is about to
+execute $\lctx[\val']$. In other words, whenever $\expr$ reduces to a
+value we know that $\expr'$ has also been reduced to $\val'$. The
+reason for explicit quantification over the thread $j$ under which the
+specification side is being executed is to enable thread-local
+reasoning. We quantify over the evaluation context $\lctx$ under which
+the expression is about to be executed to enable modular reasoning
+with respect to evaluation contexts.
+
+
+The goal is now to be able to formalize that "thread $j$ is about to execute $\lctx[\expr']$". For this, we first define the monoids:
+\begin{align*}
+\textsc{Heap} \eqdef{}&\authm(\Loc \fpfn (\exm(\Val))) \\
+\textsc{Tpool} \eqdef{}& \authm(\nat \fpfn (\exm(\Expr))) \\
+\end{align*}
+Letting $\gname_h'$, $\gname_{\mathit{tp}}'$ be instances of \textsc{Heap}\footnote{Notice that is the same resource algebra, that is used to define the standard $\mapsto$ predicate. Hence we now have two instances of it, one $\gname_h$ for tracking the heap on the implementation side and one $\gname_h'$ for tracking the heap on the specification side.} respectively \textsc{Tpool} we now define the following propositions:
+\begin{align*}
+  \SpecConf(\state, \vv{\expr}) \eqdef{}
+  & \ownGhost{\gname_h'}{\authfull \mathrm{res}(\state)} \ast
+    \ownGhost{\gname_{\mathit{tp}}'}{\authfull \mathrm{fpfnOf}(\vv{\expr})}\\
+  \loc \mapsto_s \val \eqdef{}& \ownGhost{\gname_h'}{\authfrag [\loc \mapsto \val]}\\
+  j \Mapsto_s \expr \eqdef{}& \ownGhost{\gname_{\mathit{tp}}'}{\authfrag [j \mapsto \expr]}\\
+\intertext{where}
+\mathrm{fpfnOf}(\expr_1, \dots, \expr_n) \eqdef{}& \set{(i, \expr_i) \middle| 1 \le i \le n}
+\end{align*}
+Here, $\cfgg$ is a configuration, \ie\ a pair of a heap and a thread
+pool, $(\state, \vv{\expr})$. The intuition is that $\SpecConf(\cfgg)$
+is the (unique) configuration that the specification side is in. 
+The propositions $j \Mapsto \expr$ and $\loc \mapsto_s \val$ simply
+specify the exclusive ownership of the execution of a thread or a
+memory location on the specification side. Naturally, this requires the propositions to be exclusive.
+
+Furthermore we use the following invariant to express that the specification side is in a configuration reachable from some starting configuration:
+
+\[\SpecCtx(\cfgg) \eqdef{} \knowInv{\namesp.sc}{\exists \cfgg'.\;
+    \SpecConf(\cfgg') \land \cfgg \tpstep ^{*} \cfgg'} \]
+
+With these tools, it is possible to define the expression relation as:
+
+\begin{align*}
+  \semEtype{\Tenv}{\typ}{\semenv}(\expr, \expr') \eqdef{}
+  & \forall \cfgg, j, \lctx.\; \SpecCtx(\cfgg) \ast j \Mapsto \lctx[\expr'] \wand\\
+  & \wpre{\expr}{\val.\;
+    \exists \val'.\; j \Mapsto \lctx[\val'] \ast \semVtype{\Tenv}{\typ}{\semenv}(\val, \val')} \\
+\end{align*}
+The expression relation above states that $\expr$ and $\expr'$ are
+related if the following holds: for any thread $j$ which is about to
+execute $\expr'$ under some evaluation context $\lctx$, it is safe to
+evaluate $\expr$ and whenever $\expr$ reduces to a value $\val$, we
+know that $\expr'$ has also been evaluated to some value $\val'$ in
+thread $j$ under the evaluation context $\lctx$. Furthermore, we know
+that $\val$ and $\val'$ will be related as values of the type relating
+$\expr$ and $\expr'$. Thus, essentially, two expressions $\expr$ and
+$\expr'$ are related at type $\typ$ if, whenever $\expr$ reduces to a
+value, so does $\expr'$ (no matter under which circumstances it is
+being evaluated), and the resulting values will be related at type
+$\typ$.
+
+One can now define the binary logical relations for \TheLang{}, written
+$\semtyped{\Tenv}{\env}{\expr \lelog \expr'}{\typ}$, as follows:
+\[\semtyped{\Tenv}{\env}{\expr \lelog \expr'}{\typ} \eqdef{} \forall
+  \vv{\val}, \vv{\val'}, \semenv.\;
+  \semGtype{\Tenv}{\env}{\semenv}(\vv{\val}, \vv{\val'}) \proves
+  \semEtype{\Tenv}{\typ}{\semenv}(\subst{\expr}{\vv{\var}}{\vv{\val}},
+  \subst{\expr'}{\vv{\var}}{\vv{\val'}}) \] where $\vv{\var}$ is the
+domain of $\env$.
+
+See~\cite{timany:logrel-in-iris} for the definition of the value relation and also
+for applications of the logical relation for proving challenging
+contextual refinements.
+
+%%% Local Variables:
+%%% mode: latex
+%%% TeX-master: "../main.tex"
+%%% End:

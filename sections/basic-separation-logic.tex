@@ -1,0 +1,1338 @@
+\section{Separation Logic for Sequential Programs}
+\label{sec:basic-separation-logic}
+
+%% Generic command for constructing variations of the consequence rule
+\newcommand{\htcsqgen}[4][]
+{\rulegen[#1]{Ht-csq#2}
+  { S \text{ persistent } \and
+  S \proves \prop #3 \prop' \and
+  S \proves \hoare{\prop'}{\expr}{\Ret\val.\propB'}[#4] \and
+  S \proves \All u. \propB'[u/v] #3 \propB[u/v]}
+  {S \proves \hoare{\prop}{\expr}{\Ret\val.\propB}[#4]}}
+
+%% Primitive program logic rules
+\newcommand{\htframe}[1][]
+{\rulegen[#1]{Ht-frame}
+{ S \proves \hoare{P}{e}{v.Q}}
+{ S \proves \hoare{P \ast R}{e}{v.Q \ast R}}}
+\newcommand{\htfalse}[1][]
+{\rulegen[#1]{Ht-False}
+{ }
+{S \proves \hoare{\FALSE}{e}{v.Q}}}
+\newcommand{\htret}[1][]
+{\rulegen[#1]{Ht-ret}
+{w \text{ is a value }}
+{ S \proves \hoare{\TRUE}{\valB}{v. v = \valB}}}
+\newcommand{\htbind}[1][]
+{\rulegen[#1]{Ht-bind}
+{ \text{$\lctx$ is an eval. context} \and
+  S \proves \hoare{\prop}{\expr}{\Ret\val. \propB} \and
+  S \proves \All \val. \hoare{\propB}{\lctx[\val]}{\Ret\valB.\propC}}
+{ S \proves \hoare{\prop}{\lctx[\expr]}{\Ret\valB.\propC}}}
+\newcommand{\htcsq}[1][]
+{\htcsqgen[#1]{}{\Rightarrow}{}}
+\newcommand{\htdisj}[1][]
+{\rulegenb[#1]{Ht-disj}
+{ S \proves \hoare{\prop}{\expr}{\Ret\val.\propC} \and
+  S \proves \hoare{\propB}{\expr}{\Ret\val.\propC}}
+{ S \proves \hoare{\prop \lor \propB}{\expr}{\Ret\val.\propC}}}
+\newcommand{\htexist}[1][]
+{\rulegenb[#1]{Ht-exist}
+{x \notin \freevars{Q} \and S \proves \All \var. \hoare{\prop}{\expr}{\Ret\val.\propB}}
+{x \notin \freevars{Q} \and  S \proves \hoare{\Exists \var.\prop}{\expr}{\Ret\val.\propB}}}
+\newcommand{\htop}[1][]
+{\rulegen[#1]{Ht-op}
+  {v''= v \binop v'}
+  {\hoare{\TRUE}{v \binop v'}{r.r = v''}}}
+\newcommand{\htloadgen}[2][]
+{\rulegen[#1]{Ht-load}
+  { }
+  { S \proves \hoare{#2 \ell \pointsto u}{\deref \ell}{v . v = u \land \ell \pointsto u}}}
+\newcommand{\htloadtemp}[1][]
+{\htloadgen[-temp#1]{ }}
+\newcommand{\htalloc}[1][]
+{\rulegen[#1]{Ht-alloc}
+  { }
+  { S \proves \hoare{\TRUE}{\Ref(u)}{v . \Exists \ell . v = \ell\land \ell \pointsto u}}}
+\newcommand{\htstoregen}[2][]
+{\rulegen[#1]{Ht-store}
+  { }
+  { S \proves \hoare{#2 \ell \pointsto -}{\ell \gets w }{v . v = \TT \land \ell \pointsto w}}}
+\newcommand{\htstoretemp}[1][]
+{\htstoregen[-temp#1]{ }}
+\newcommand{\htrecgen}[2][]
+{\rulegen[#1]{Ht-Rec}
+  { \Gamma, g : \Val \mid S \land \All y . \All v. \hoare{P}{g v}{u.Q } \proves \All y . \All v. \hoare{P}{e[g/f,v/x]}{u.Q}}
+  { \Gamma \mid S \proves \All y . \All v. \hoare{#2 P}{(\Rec{f} x = e) v}{u.Q}}}
+\newcommand{\htrectemp}[1][]
+{\htrecgen[-temp#1]{ }}
+\newcommand{\htproj}[1][]
+{\rulegen[#1]{Ht-Proj}
+  { }
+  { S \proves \hoare{\TRUE }{\Proj{i} (v_1,v_2) }{v . v = v_i}}}
+\newcommand{\htmatchgen}[2][]
+{\rulegen[#1]{Ht-Match}
+  { S \proves \hoare{P}{e_i\left[u/x_i\right]}{v.Q}}
+  { S \proves \hoare{#2 P}{\Match{\Inj{i} u}with{\Inj{1}x_1}=>{e_1}|{\Inj{2}x_2}=>{e_2}end}{v.Q}}}
+\newcommand{\htmatchtemp}[1][]
+{\htmatchgen[-temp#1]{ }}
+\newcommand{\htifgen}[2][]
+{\rulegen[#1]{Ht-If}
+  { \hoare{P * b = \True}{e_2}{u.Q} \and
+    \hoare{P * b = \False}{e_3}{u.Q} }
+  { \hoare{#2 P}{\If b then e_2 \Else e_3}{u.Q} }}
+\newcommand{\htiftemp}[1][]
+{\htifgen[-temp#1]{ }}
+\newcommand{\hteq}[1][]
+{\rulegen[#1]{Ht-Eq}
+  {S \land t =_\tau t' \proves \hoare{P}{\expr}{v.Q}}
+  {S \proves \hoare{P \land t =_\tau t'}{\expr}{v.Q}}}
+\newcommand{\htht}[1][]
+{\rulegen[#1]{Ht-Ht}
+  {S \land \hoare{P_1}{\expr_1}{v.Q_1} \proves \hoare{P_2}{\expr_2}{v.Q_2}}
+  {S \proves \hoare{P_2 \land \hoare{P_1}{\expr_1}{v.Q_1}}{\expr_2}{v.Q_2}}}
+
+%% Derived program logic rules
+\newcommand{\htletgen}[2][]
+{\rulegen[#1]{Ht-let}
+{ S \proves \hoare{P}{e_1}{x. #2 Q} \and
+  S \proves \All v.\hoare{Q[v/x]}{e_2\left[v/x\right]}{u.R}}
+{S \proves \hoare{P}{\Let x=e_1 in e_2}{u.R}}}
+\newcommand{\htlettemp}[1][]
+{\htletgen[-temp#1]{ }}
+\newcommand{\htletdetgen}[2][]
+{\rulegen[#1]{Ht-let-det}
+  {S \proves \hoare{P}{e_1}{x . #2 x = v \land #2 Q} \and
+      S \proves \hoare{Q[v/x]}{e_2\left[v/x\right]}{u.R}}
+    {S \proves \hoare{P}{\Let x=e_1 in e_2}{u.R}}}
+\newcommand{\htletdettemp}[1][]
+{\htletdetgen[-temp#1]{ }}
+\newcommand{\htseqgen}[2][]
+{\rulegen[#1]{Ht-seq}
+  { S \proves \hoare{P}{e_1}{v. #2 Q} \and
+    S \proves \hoare{\Exists x. Q}{e_2}{u.R}}
+  { S \proves \hoare{P}{e_1 ; e_2}{u.R}}}
+\newcommand{\htseqtemp}[1][]
+{\htseqgen[-temp#1]{ }}
+\newcommand{\htbetagen}[3][]
+{\rulegen[#1]{Ht-beta}
+  {S \proves \hoare{P}{e\left[v/x\right]}{u.Q}[#3]}
+  {S \proves \hoare{#2 P}{(\lambda x . e) v}{u.Q}[#3]}}
+\newcommand{\htbeta}[1][]{\htbetagen[#1]{ }{ }}
+
+To get basic separation logic we extend the basic logic of resources with two new predicates: Hoare triples and the points-to predicate.
+Hoare triples are basic predicates about programs (terms of type $\Expr$) and the points-to predicate $x \pointsto v$ is a basic proposition about resources, which at this stage can be thought of as heap fragments.
+
+The new constructs satisfy the following typing rules.
+\begin{mathpar}
+  \infer{\vctx \proves \wtt{P}{\Prop} \and \vctx \proves \wtt{e}{\Expr} \and \vctx \proves \wtt{\Phi}{\Val \to \Prop}}
+  {\vctx \proves \wtt{\hoare{P}{e}{\Phi}}{\Prop}}
+  \and
+  \infer{\vctx \proves \wtt{\ell}{\Val} \and \vctx \proves \wtt{v}{\Val}}
+  {\vctx \proves \wtt{\ell \pointsto v}{\Prop}}
+\end{mathpar}
+
+The intuitive reading of the Hoare triple $\hoare{P}{e}{\Phi}$ is that
+if the program $e$ is run in a heap $h$ satisfying $P$, then the
+computation does not get stuck and, moreover, if it terminates with a
+value $v$ and a heap $h'$, then $h'$ satisfies $\Phi(v)$.
+Note that $\Phi$ has two purposes.
+It describes the value $v$, \eg{} it could contain the proposition $v = 3$, and it describes the resources after the execution of the program, \eg{} it could contain $x \pointsto 15$.
+At this stage the precondition $P$ must describe the set of resources necessary for $e$ to run safely, if we are to prove the triple.
+Informally, we sometimes say that $P$ must include the \emph{footprint} of $e$, those resources needed for $e$ to run safely.
+For example, if the expression $e$ uses a location during evaluation (either reads to or writes from it), then any heap fragment in $P$ must contain a value at that location.
+As a consequence, if the expression is run in a heap with location $\ell$, which is not mentioned by $P$, then the value at that location will not be altered.
+This is one intuition for why the frame rule below is sound.
+
+Later on, in Section~\ref{sec:invar-ghost-state}, not all resources needed to execute $e$ will need to be in the precondition.
+Resources shared by different threads will instead be in \emph{invariants}, and only resources that are \emph{local} to the thread will be in preconditions.
+But that is for later.
+
+\paragraph{Laws for the points-to predicate}
+As we described above the basic predicate $x \pointsto v$ describes those heap fragments that map the location $x$ to the value $v$.
+
+The essential properties of the points-to predicate are that (1) it is
+\emph{not} duplicable, which means that
+\begin{mathpar}
+  \ell \pointsto v \ast \ell \pointsto v' \proves \FALSE
+\end{mathpar}
+and (2) that it is a partial function in the sense that
+\begin{mathpar}
+  \ell \pointsto v \land \ell \pointsto v' \proves v =_{\Val} v'.
+\end{mathpar}
+
+Other properties of the points-to predicate come into play in connection with Hoare triples and language constructs which manipulate state.
+
+\paragraph{Laws for Hoare triples}
+The basic axioms for Hoare triples are listed in Figure~\ref{fig:hoare-triple-rules-sequential} on page~\pageref{fig:hoare-triple-rules-sequential}.
+They are split into three groups.
+First there are structural rules.
+These deal with transforming pre- and postconditions but do not change the program.
+Next, for each elimination form and basic heap operation of the language, there is a rule stating how the primitive operation transform pre- and postconditions.
+In the third group we list two more structural rules which allow us to move persistent propositions, that is, propositions which do not depend on any resources, in and out of preconditions.
+
+In postconditions we use $v.Q$ to mean $\lambda v.Q$.
+
+In most rules there is an arbitrary proposition/assumption $S$.
+Some structural rules, such as \ruleref{Ht-Eq} do change it, but in most rules it remains unchanged.
+This proposition is necessary.
+It will contain, \eg{} equalities or inequalities between natural numbers, and other facts about terms appearing in triples.
+We now explain the rules.
+
+\paragraph{The frame rule}
+The frame rule
+\begin{align*}
+\htframe[-inline]
+\end{align*}
+expresses that if an expression $e$ satisfies a Hoare triple, then it
+will preserve any resources described by a ``frame'' (\ie{}
+environment resources not touched by the evaluation of the term) $R$
+disjoint from the resources described by the precondition $P$.
+Intuitively, this frame rule is sound since the precondition $P$ of a
+Hoare triple $\hoare{P}{e}{v.Q}$ describes the whole footprint of $e$,
+which is to say that $e$ does not touch any other resources disjoint
+from those in $P$.
+The frame rule is essential for giving ``small footprint'' specifications of programs.
+We need only mention those resources in the pre- and post-conditions which are needed and affected by the program.
+
+For example, a method that swaps the values stored at two locations can be
+specified by only mentioning those two locations.  Then, when the
+specification is used, there will typically be a frame $R$, asserting
+facts about other resources.  Since the swap function does
+not rely on them nor does it alter them, the frame $R$ will be
+preserved.
+
+In original Hoare logic without separating conjunction such a rule was not expressible.
+Note that the use of separating conjunction as opposed to conjunction is essential.
+The rule
+\begin{align*}
+  \infer[Ht-frame-invalid]
+  { S \proves \hoare{P}{e}{v.Q}}
+  { S \proves \hoare{P \land R}{e}{v.Q \land R}}
+\end{align*}
+is not sound.
+
+\begin{exercise}
+  Come up with a counterexample to the above rule.
+\end{exercise}
+
+\begin{exercise}
+  Prove 
+  \begin{displaymath}
+    S \proves \left(\hoare{\prop}{e}{v.\propB} \implies \forall \propC:\Prop, \hoare{\prop*\propC}{e}{v.\propB*\propC}\right) \qedhere
+  \end{displaymath}
+\end{exercise}
+
+\paragraph{False precondition}
+The following rule
+\begin{align*}
+\htfalse[-inline]
+\end{align*}
+is trivially sound since there are no resources satisfying $\FALSE$.
+
+\paragraph{Value and evaluation context rules}
+\begin{mathpar}
+\htret[-inline]
+  \and
+\htbind[-inline]
+\end{mathpar}
+The \ruleref{Ht-ret} rule is simple:
+Since a computation consisting of a value does not compute further, it does not require any resources
+and the return value is just the value itself.
+
+The rule \ruleref{Ht-bind} is more interesting and will be used
+extensively in order to transform the verification of a big program
+$\lctx[e]$ to the verification of individual steps for which we have basic
+axioms for Hoare triples. To illustrate consider the following example.
+
+Suppose we are to prove (using let expressions, which are definable in the language)
+\begin{align*}
+  \hoare{\prop}{\Let x = e in e_2}{v.R}
+\end{align*}
+and suppose we have already proved
+\begin{align*}
+  \hoare{P}{e}{v.Q}
+\end{align*}
+for some $Q$.
+The rule \ruleref{Ht-bind} states that we only need to verify
+\begin{align*}
+  \hoare{Q[u/v]}{\Let x = u in e_2}{v.R}
+\end{align*}
+for all values $u$.
+Typically, $Q$ will restrict the set of values; 
+it will be those values which are possible results of evaluating $e$.
+
+\begin{exercise}
+  Use \ruleref{Ht-bind} to show $\hoare{\TRUE}{3+4+5}{v. v = 12}$.
+\end{exercise}
+
+\paragraph{Persistent propositions}
+
+Some of the propositions, namely Hoare triples and equality, do not
+rely on any exclusive resources, exclusive in the sense that they cannot be shared.
+We call such propositions \emph{persistent} and we will see
+more examples, and a more uniform treatment, later on.  For now the
+essential properties of persistent propositions are the rules
+\ruleref{Ht-Eq} and \ruleref{Ht-Ht}, together with the following axiom
+for any \emph{persistent propositions} $P$ and \emph{any proposition} $Q$.
+\begin{align*}
+  P \land Q \proves P \ast Q\qquad\text{if $P$ is persistent}.
+\end{align*}
+Intuitively, if $P$ is persistent, then it does not depend on any exclusive resources.
+Thus if $P \land Q$ holds, then $r \in P \land Q$ is shareable, thus can be shared between $P$ and $Q$, \ie{} $r$ in $P \ast Q$.
+Later on this intuition will be slightly refined and we will see exactly what shareable means in Iris.
+
+Note that we always have the entailment
+\begin{align*}
+  P \ast Q \proves P \land Q
+\end{align*}
+and thus, if one of the propositions is \emph{persistent},  then  there is no difference between conjunction and separating conjunction.
+
+\begin{exercise}
+  Prove the derived rule $P \ast Q \proves P \land Q$ for any propositions $P$ and $Q$.
+\end{exercise}
+
+
+\paragraph{The rule of consequence}
+\begin{mathpar}
+\htcsq[-inline]
+\end{mathpar}
+The rule of consequence states that we can strengthen the precondition
+and weaken the postcondition.  It is important that the context in
+which strengthening and weakening occur is persistent, that is, that
+it does not rely on any resources (hence the context 
+must not contain predicates such as the points-to predicate).
+The rule of consequence is used very often, most of the time implicitly.
+
+\paragraph{Elimination of disjunction and existential quantification}
+The rules
+\begin{mathpar}
+\htdisj[-inline]
+  \and
+\htexist[-inline]
+\end{mathpar}
+allow us to make use of disjunction and existential quantification in the precondition.
+\begin{exercise}
+  Use the intuitive reading of Hoare triples to explain why the above rules are sound.
+  \footnote{Note that each of those two rules is two ordinary rules, one where the top is the premise and the bottom the conclusion, and one where the bottom is the premise and top the conclusion.}
+\end{exercise}
+
+\newcommand{\sepfigcontent}[1][]{
+  \begin{mathparpagebreakable}
+    \textbf{Structural rules.}\\
+    \htframe[#1]
+    \and
+    \htfalse[#1]
+    \and
+    \htret[#1]
+    \and
+    \htbind[#1]
+    \and
+    \htcsq[#1]
+    \and
+    \htdisj[#1]
+    \and
+    \htexist[#1]\\
+    \textbf{Rules for basic constructs of the language.}\\
+    \htop[#1]
+    \and
+    \htloadtemp[#1]
+    \and
+    \htalloc[#1]
+    \and
+    \htstoretemp[#1]
+    \and
+    \htrectemp[#1]
+    \and
+    \htproj[#1]
+    \and
+    \htmatchtemp[#1]
+    \and
+    \htiftemp[#1]\\
+    \textbf{The following two rules allow us to move persistent propositions in and out of preconditions.}\\
+    \hteq[#1]
+    \and
+    \htht[#1]
+  \end{mathparpagebreakable}  
+}
+
+\begin{figure}[htbp]
+  \centering
+  \sepfigcontent
+  \caption{Rules for Hoare triples.}
+  \label{fig:hoare-triple-rules-sequential}
+\end{figure}
+
+
+\paragraph{Rules for basic constructs of the language.}
+
+The first rule appearing is the rule \ruleref{Ht-op} internalising the operational semantics of binary operations.
+
+Next is the rule for reading a memory location.
+\begin{mathpar}
+\htloadtemp[-inline]
+\end{mathpar}
+To read we need resources: we need to know 
+that the location $\ell$ we wish to read from exists and, moreover, that a value $u$ is
+stored at that location. 
+After reading we get the exact value and we still have the resources we started with.
+Note that it is crucial that the postcondition still contains $\ell \pointsto u$.
+Otherwise it would be impossible to use the same location more than once if we wished to verify a program.
+
+Allocation does not require any resources, \ie{} it is safe to run
+$\Ref(u)$ in any heap.
+Hence the precondition for allocation is $\TRUE$.
+\begin{mathpar}
+\htalloc[-inline]
+\end{mathpar}
+We get back an $\ell \pointsto u$ resource.  That is, after executing
+$\Ref(u)$ we know there exists some location $\ell$ which contains
+$u$.  Note that we cannot choose which location we get -- the exact
+location will depend on which locations are already allocated in the
+heap in which we run $\Ref(u)$ -- hence the existential quantification
+in the postcondition.
+
+Writing to location $\ell$
+\begin{mathpar}
+\htstoretemp[-inline]
+\end{mathpar}
+requires resources.
+Namely that the location exists in the heap ($\ell \pointsto -$ is
+shorthand for $\exists u . \ell \pointsto u$).
+Note that with the ownership reading of Iris propositions the requirement that $\ell$ points-to some value means that we \emph{own} the location.
+Hence we can change the value stored at it (without violating 
+assumptions of other modules or concurrently running threads). 
+
+\begin{remark}
+  Note that it is essential that $\ell \pointsto -$ is in the precondition of the \ruleref{Ht-store-temp}, even though we do not care what is stored at the location.
+  A rule such as
+  \begin{displaymath}
+    \infer
+    { }
+    { S \proves \hoare{\TRUE}{\ell \gets w }{v . v = \TT \land \ell \pointsto w}}
+  \end{displaymath}
+  would lead to inconsistency together with the frame rule.
+
+  A conceptual reason why such a rule is inconsistent is that the resources required by the program to run should be in the precondition.
+  This ensures that the program is safe to run, \ie{} it will not get stuck.
+  And since the program will get stuck storing a value to a location if the location is not allocated, we should not be able to give it a specification that allows it to be run in such a heap, \ie{} with precondition $\TRUE$.
+\end{remark}
+
+The rule for the conditional expression \ruleref{Ht-If-temp} is as expected.
+\begin{mathpar}
+\htiftemp[-inline]
+\end{mathpar}
+It mimics the intuitive meaning of the conditional expression.
+%
+The rules for eliminating values of the product and sum types
+\begin{mathpar}
+\htproj[-inline]
+  \and
+\htmatchtemp[-inline]
+\end{mathpar}
+are straightforward from the operational semantics of the language.
+
+Finally, the recursion rule is interesting.
+\begin{mathpar}
+\htrectemp[-inline]
+\end{mathpar}
+It states that to prove that the recursive function application satisfies some specification it suffices to prove that the body of the recursive function satisfies the specification \emph{under the assumption} that all recursive calls satisfy it.
+The variable $v$ is the programming language value to which the function is applied.
+The variable $y$ is the logical variable, which will typically be connected to the programming language value $v$ in the precondition $P$.
+As an example, which we will see in detail later on, the value $v$ could be a pointer to a linked list, and the variable $y$ could be the list of values stored in the linked list.
+What type precisely $y$ ranges over depends on the precise application in mind.
+In some examples we will not need the variable $y$, \ie{} we shall use the rule
+\begin{align}
+  \label{eq:simplified-ht-rec-no-logical-variable}
+  \infer
+  { \Gamma, g : \Val \mid S \land \All v. \hoare{P}{g v}{u.Q } \proves \All v. \hoare{P}{e[g/f,v/x]}{u.Q}}
+  { \Gamma \mid S \proves \All v. \hoare{P}{(\Rec{f} x = e) v}{u.Q}}
+\end{align}
+This rule is derivable from the rule \ruleref{Ht-Rec} by choosing the variable $y$ to range over the singleton type $1$ using the logical equivalence
+$\All y : 1 . \Phi \iff \Phi$, provided $y$ does not appear in $\Phi$.
+
+\begin{example}
+  The recursion rule perhaps looks somewhat intimidating.
+  To illustrate how it is used we use it to verify a very simple program, the program computing the factorial.
+  The factorial function can be implemented in our language as follows.
+  \begin{align*}
+    \Rec{\langkw{fac}} n = \If n = 0 then 1 \Else n * \langkw{fac}(n-1).
+  \end{align*}
+  
+  The specification we wish to give it is, of course,
+  \begin{align*}
+    \forall n. \hoare{n \geq 0}{\langkw{fac} \, n}{\Ret\val. \val =_{\Val} n!}
+  \end{align*}
+  where $n!$ is the factorial of the number $n$.
+
+  Let us now sketch a proof of it.
+  There is no logical variable $y$, so we will use the simplified rule~\eqref{eq:simplified-ht-rec-no-logical-variable}.
+  Using the rule we see that we must show the entailment (the context $S$ is empty)
+  \begin{align*}
+    \All n. \hoare{n \geq 0}{f n}{\Ret\val. \val =_{\Val} n!} \proves \All n. \hoare{n \geq 0}{\If n = 0 then 1 \Else n * f(n-1)}{\Ret\val. \val =_{\Val} n!}
+  \end{align*}
+  So let us assume
+  \begin{align}
+    \label{eq:factorial-assumption-IH}
+    \All n.\hoare{n \geq 0}{f n}{\Ret\val.\val =_{\Val} n!}.
+  \end{align}
+  To prove $\All n.\hoare{n \geq 0}{\If n = 0 then 1 \Else n * f(n-1)}{\Ret\val.\val =_{\Val} n!}$ we start by using the \ruleref{Ht-If-temp} rule.
+  Thus we have to prove two triples
+  \begin{align*}
+    &\hoare{n \geq 0 \ast (n = 0) =_{\Val} \True}{1}{\Ret\val.\val =_{\Val} n!}\\
+    &\hoare{n \geq 0 \ast (n = 0) =_{\Val} \False}{n * f(n-1)}{\Ret\val.\val =_{\Val} n!}
+  \end{align*}
+  We leave the first one as an exercise and focus on the second.
+  Using the \ruleref{Ht-bind} with the evaluation context being $n * -$ and the intermediate assertion $Q$ being $Q \equiv v = (n-1)!$ we have to prove the following two triples
+  \begin{align*}
+    &\hoare{n \geq 0 \ast (n = 0) =_{\Val} \False}{f (n - 1)}{v. v =_{\Val} (n-1)!}\\
+    &\All v.\hoare{v = (n-1)!}{n * v}{u.u=_{\Val}n!}
+  \end{align*}
+  The first triple follows by the rule of consequence and the assumption~\eqref{eq:factorial-assumption-IH}.
+  Indeed $n \geq 0 \ast (n = 0) =_{\Val} \False$ implies $n - 1 \geq 0$, and instantiating the assumption~\eqref{eq:factorial-assumption-IH} with $n-1$ we get
+  \begin{align*}
+    \hoare{n - 1 \geq 0}{f (n-1)}{\Ret\val.\val =_{\Val} (n-1)!}
+  \end{align*}
+  as needed.
+  The second triple follows easily by \ruleref{Ht-Eq} and basic properties of equality and the factorial function.
+\end{example}
+
+Notice that rules above are stated in very basic form with values wherever possible, which means they are often needlessly cumbersome to use in their basic form.
+The following exercises develop some derived rules.
+\begin{exercise}
+  Prove the following derived rule.
+  For any \emph{value} $u$ and expression $e$ we have
+  \begin{align*}
+    \infer
+    {S \proves \hoare{P}{e}{v.Q}}
+    {S \proves \hoare{P}{\pi_1(e,u)}{v.Q}}.
+  \end{align*}
+  It is important that the second component is a value.
+  Show that the following rule is not valid in general if $e_1$ is allowed to be an arbitrary expression.
+  \begin{align*}
+    \infer
+    {S \proves \hoare{P}{e}{v.Q}}
+    {S \proves \hoare{P}{\pi_1(e,e_1)}{v.Q}}.
+  \end{align*}
+  Hint: What if $e$ and $e_1$ read or write to the same location?
+
+  The problem is that we know nothing about the behaviour of $e_1$.
+  But we can specify its behaviour using Hoare triples.
+  Come up with some propositions $P_1$ and $P_2$ or some conditions on $P_1$ and $P_2$ such that the following rule
+  \begin{align*}
+    \infer
+    {S \proves \hoare{P}{e}{v.Q} \and S \proves \hoare{P_1}{e_1}{v.P_2}}
+    {S \proves \hoare{P}{\pi_1(e,e_1)}{v.Q}}.
+  \end{align*}
+  is derivable.
+\end{exercise}
+
+\begin{exercise}
+  From \ruleref{Ht-If-temp} we can derive two, perhaps more natural, rules, which are simpler to use.
+  They require us to only prove a specification of the branch which will be taken.
+  \begin{mathpar}
+    \inferH{Ht-If-True}
+    { \hoare{P * v = \True}{e_2}{u.Q}}
+    { \hoare{P * v = \True}{\If v then e_2 \Else e_3}{u.Q} }\and
+    \inferH{Ht-If-False}
+    { \hoare{P * v = \False}{e_3}{u.Q}}
+    { \hoare{P * v = \False}{\If v then e_2 \Else e_3}{u.Q} }
+  \end{mathpar}
+  Derive \ruleref{Ht-If-True} and \ruleref{Ht-If-False} from \ruleref{Ht-If-temp}.
+\end{exercise}
+
+\begin{exercise}\label{exercise:derived-match-rule}
+  Show the following derived rule for any expression $e$ and $i \in \{1,2\}$.
+  \begin{align*}
+    \infer
+    { S \proves \hoare{P}{e}{v.v = \Inj{i} u \ast Q} \and
+      S \proves \hoare{Q\left[\Inj{i} u / v\right]}{e_i\left[u/x_i\right]}{v.R}}
+    { S \proves \hoare{P}{\Match{e}with{\Inj{1}x_1}=>{e_1}|{\Inj{2}x_2}=>{e_2}end}{v.R}}
+  \end{align*}
+\end{exercise}
+
+\subsection{Derived rules for Hoare triples}
+
+The following exercises develop some basic building blocks which will be extensively used in proofs later on.
+They are for the most part simple applications or special cases of the rules in Figure~\ref{fig:hoare-triple-rules-sequential} and doing the exercises is good practice to get used to the rules.
+
+\begin{exercise}
+  \label{exercise:using-equality-in-the-precondition}
+  Show the following derived rule
+  \begin{mathpar}
+    \inferH{Ht-Pre-Eq}
+    {\Gamma \mid S \proves \hoare{P[v/x]}{e[v/x]}{u.Q[v/x]}}
+    {\Gamma, x : \Val \mid S \proves \hoare{x = v \land P}{e}{u.Q}}
+  \end{mathpar}
+\end{exercise}
+
+\begin{exercise}
+  \label{exercise:derived-rule-let-expression-sequencing}
+  Recall we define the let expression $\Let x=e_1 in e_2$ using abstraction and application.
+  Show the following derived rule
+  \begin{mathpar}
+    \htlettemp
+  \end{mathpar}
+  Using this rule is perhaps a bit inconvenient since most of the time the result of evaluating $e_1$ will be a single value and the postcondition $Q$ will be of the form $x = v \land Q'$ for some value $v$.
+  
+  The following rule, a special case of the above rule reflects this common case.
+  Derive the rule from the rule \ruleref{Ht-let-temp}.
+  \begin{mathpar}
+    \htletdettemp
+  \end{mathpar}
+
+  Define the sequencing expression $e_1 ; e_2$ such that when this expression is run first $e_1$ is evaluated to a value, the value is discarded, and then $e_2$ is evaluated.
+  Show the following specifications for the defined construct.
+  \begin{mathpar}
+    \htseqtemp
+    \and
+    \infer
+    { S \proves \hoare{P}{e_1}{\_.Q} \and
+      S \proves \hoare{Q}{e_2}{u.R}}
+    { S \proves \hoare{P}{e_1 ; e_2}{u.R}}
+  \end{mathpar}
+  where $\_.Q$ means that $Q$ does not mention the return value.
+\end{exercise}
+
+\begin{exercise}
+  \label{exercise:derived-rule-lambda}
+  Recall we defined $\lambda x. e$ to be $\Rec{f} x = e$ where $f$ is some fresh variable.
+  Show the following derived rule.
+  \begin{mathpar}
+    \htbeta
+  \end{mathpar}
+\end{exercise}
+
+\begin{exercise}
+  Derive the following rule.
+  \begin{mathpar}
+    \inferH{Ht-bind-det}
+    {\text{$\lctx$ is an eval. context} \and S \proves \hoare{\prop}{\expr}{x. x = u \land Q} \\
+      S \proves \hoare{Q[u/x]}{\lctx[u]}{\Ret\valB.\propC}}
+    { S \proves \hoare{\prop}{\lctx[\expr]}{\Ret\valB.\propC}}
+  \end{mathpar}
+\end{exercise}
+
+When proving examples, one constantly uses the rule of consequence
+\ruleref{Ht-csq}, the bind rule \ruleref{Ht-bind} and its derived
+versions, such as \ruleref{Ht-bind-det}, and the frame rule
+\ruleref{Ht-frame}.  We now prove a specification of a
+simple program in detail to show how these structural rules are used.
+In subsequent examples in the following we will use these rules implicitly
+most of the time.
+\begin{example}
+  We want to show the following triple
+  \begin{align*}
+    \hoare{y \pointsto -}{\Let x = 3 in~y \gets x + 2}{v . v = \TT \land y \pointsto 5}.
+  \end{align*}
+
+  We start by using the rule \ruleref{Ht-let-det-temp} which means we have to show two triples (recalling that equality is a persistent proposition)
+\begin{mathpar}
+    \hoare{y \pointsto -}{3}{x. x = 3 \ast Q}
+    \and
+    \hoare{Q[3/x]}{\left(y \gets x + 2\right)[3/x]}{v.v = \TT \ast y \pointsto 5}
+\end{mathpar}
+for some intermediate proposition $Q$.  We choose $Q$ to be
+$y \pointsto -$ and using the frame rule \ruleref{Ht-frame} and the
+value rule \ruleref{Ht-ret} we have the first triple.
+
+For the second triple we use the deterministic bind rule
+\ruleref{Ht-bind-det} together with the frame rule.  First we prove
+  \begin{align*}
+    \hoare{y \pointsto -}{3 + 2}{v.v=5 \ast y \pointsto -}
+  \end{align*}
+  and then use the rule \ruleref{Ht-store-temp} to prove
+  \begin{displaymath}
+    \hoare{y \pointsto -}{y \gets 5}{v.v=\TT \ast y \pointsto 5}. \qedhere
+  \end{displaymath}
+\end{example}
+
+In the following we will not show all the individual steps of proofs since
+then proofs become very long and tedious.
+Instead our basic steps will involve Hoare triples at the level of
+granularity exemplified by the following exercise.
+\begin{exercise}
+  \label{exercise:basic-building-blocks}
+  Show the following triples and entailments in detail.
+  \begin{itemize}
+  \item
+    \begin{align*}
+      \hoare{R \ast \ell \pointsto m}{\ell \gets \deref \ell + 5}{v.R \ast v=\TT \ast \ell \pointsto (m + 5)}
+    \end{align*}
+  \item 
+    \begin{align*}
+      \hoare{P}{e[m+5/x]}{v.Q}
+      \proves
+      \hoare{P \ast \ell \pointsto m}{\Let x = \deref\ell + 5 in e}{v.Q \ast \ell \pointsto m}
+    \end{align*}
+  \item Assuming $u$ does not appear in $P$ and $Q$ show the following entailment.
+    \begin{displaymath}
+      \hoare{P}{e[v_1/x]}{v.Q}
+      \proves
+      \hoare{u = (v_1,v_2) \ast P}{\Let x = \Proj{1}u in e}{v.Q}
+      \qedhere
+    \end{displaymath}
+  \end{itemize}
+\end{exercise}
+
+\begin{example}
+  \label{example:swap}
+  A slightly more involved example involving memory locations involves the following function.
+  Let
+  \begin{align*}
+    \langkw{swap} = \lambda x~y. \Let z = \deref x in x \gets \deref y ; y \gets z
+  \end{align*}
+  be the function which swaps the value at two locations.
+
+  We would like to specify that this function indeed swaps the values at two locations given.
+  One possible formalisation of this is the following specification.
+  \begin{mathpar}
+    \hoare{\ell_1 \pointsto v_1 \ast \ell_2 \pointsto v_2}{\langkw{swap} \ \ell_1\,\ell_2}{v. v = \TT \land
+      \ell_1 \pointsto v_2 \ast \ell_2 \pointsto v_1}.
+  \end{mathpar}
+
+  To prove it, we will use \ruleref{Ht-let-det-temp} and hence we need to
+  prove the following two triples:.
+  \begin{mathpar}
+    \hoare{\ell_1 \pointsto v_1 \ast \ell_2 \pointsto v_2}
+    {\deref \ell_1}
+    {v.v = v_1 \land \ell_1 \pointsto v_1 \ast \ell_2 \pointsto v_2}\\
+    \hoare{\ell_1 \pointsto v_1 \ast \ell_2 \pointsto v_2}{\ell_1 \gets !\ell_2 ; \ell_2 \gets v_1}{v.v = \TT \land \ell_1 \pointsto v_2 \ast \ell_2 \pointsto v_1}
+  \end{mathpar}
+  The first one follows immediately from \ruleref{Ht-frame} and \ruleref{Ht-load-temp}.
+  For the second we use the sequencing rule \ruleref{Ht-seq-temp}, and hence
+  we need to show the following two triples:
+  \begin{mathpar}
+    \hoare{\ell_1 \pointsto v_1 \ast \ell_2 \pointsto v_2}
+               {\ell_1 \gets \deref\ell_2}
+               {\_.\ell_1 \pointsto v_2 \ast \ell_2 \pointsto v_2}
+    \and
+    \hoare{\ell_1 \pointsto v_2 \ast \ell_2 \pointsto v_2}
+               {\ell_2 \gets v_1}
+               {v.v = \TT \land \ell_1 \pointsto v_2 \ast \ell_2 \pointsto v_1}
+  \end{mathpar}
+  Recall that $\ell_2 \pointsto v_2$ implies $\ell_2 \pointsto -$.
+  Hence the second specification follows by \ruleref{Ht-frame},
+  \ruleref{Ht-csq} and \ruleref{Ht-store-temp}.
+
+  For the first we need to again use the deterministic bind rule \ruleref{Ht-bind-det}.
+  After that the proof consists of parts analogous to the parts we already explained.
+\end{example}
+
+\begin{remark}
+  Note that $\langkw{swap}$ will work even if the locations $\ell_1$ and $\ell_2$ are the same.
+  Hence another specification of $\langkw{swap}$ is
+  \begin{mathpar}
+    \hoare{\ell_1 \pointsto v_1 \land \ell_2 \pointsto v_2}{\langkw{swap} \ \ell_1\,\ell_2}{v. v = \TT \land
+      \ell_1 \pointsto v_2 \land \ell_2 \pointsto v_1}.
+  \end{mathpar}
+  This specification is incomparable (neither of them is derivable from the other) with the previous one with the rules we have.
+  In fact, with the rules we have, we are not able to show this specification.
+\end{remark}
+
+\subsection{Reasoning about Mutable Data Structures}
+
+In the following examples we will work with linked lists -- chains of
+reference cells with forward links.  In order to specify their
+behaviour we assume (as explained in
+Section~\ref{sec:basic-constructions-in-iris}) that we have sequences
+and operations on sequences in our logic together with their expected
+properties.  We write $[]$ for the empty sequence and $x::xs$ for the
+sequence consisting of an element $x$ and a sequence $xs$. 
+We define a predicate $\operatorname{isList}$
+to tie concrete program values to logical sequences.  Our
+representation of linked lists will mimic that of inductively defined
+lists, which are either empty ($\langkw{inj}_1 ()$) or a pointer to a
+pair of a value and another list ($\langkw{inj}_2 \ell$ where
+$\ell \pointsto (h,t)$).  Notice, however, that this is \emph{not} an
+inductively defined data structure in the sense known from statically
+typed funtional languages like ML or Coq -- it mimics the shape, but
+nothing inherently prevents the formation of, \eg{} cyclical lists.
+
+The $\operatorname{isList} l xs$ predicate relates 
+values $l$ to sequences $xs$; it is 
+defined by induction on $xs$:
+\begin{align*}
+  &\operatorname{isList} l [] \equiv l = \langkw{inj}_1()\\
+  &\operatorname{isList} l (x::xs) \equiv \Exists hd, l'. l = \langkw{inj}_2(hd) * hd \pointsto (x,l') * \operatorname{isList} l' xs
+\end{align*}
+%
+Notice that while our data representation in itself does not 
+ensure the absence of, \eg{}
+cyclic lists, the $\operatorname{isList} l xs$ predicate above 
+does ensure that the list $l$ is acyclic, because of
+separation of the $hd$ pointer and the inductive
+occurrence of the predicate.
+
+\begin{exercise}
+  Explain why the separating conjunction ensures lists are acyclic.
+  What goes wrong if we used ordinary conjunction?
+\end{exercise}
+
+To specify the next example we assume the $\operatorname{map}$ function on sequences in the logic.
+It is the logical function from sequences to sequences that applies $f$ at every index of the sequence:
+it is defined by the following two equations
+\begin{align*}
+  &\operatorname{map} f [] \equiv []\\
+  &\operatorname{map} f (x::xs) \equiv f x :: \operatorname{map} f xs
+\end{align*}
+
+
+\begin{example}
+  We now have all the ingredients to write and specify a simple program on linked lists.
+  Let $\langkw{inc}$ denote the following program that increments all values in a linked list of integers:
+  \begin{displaymath}
+    \Rec{\langkw{inc}} l =
+    \MatchML{l}with{\Inj{1} x_1}=>{()}|{\Inj{2} x_2}=>{\begin{array}[t]{l}\Let h = \Proj{1} \deref x_2 in\\ \Let t = \Proj{2} \deref x_2 in\\ x_2 \gets (h+1,t) ;\\ \langkw{inc}\ t\end{array}}end{}
+  \end{displaymath}
+  We wish to give it the following specification:
+  \begin{mathpar}
+    \forall xs.\forall l.
+    \hoare{\operatorname{isList} l xs}%
+                {\langkw{inc}\, l}%
+                {v.v=() \wedge \operatorname{isList} l (\operatorname{map} (1+) xs)}
+\end{mathpar}
+%
+We proceed by the \ruleref{Ht-Rec} rule and we consider two cases: we
+use the fact that the sequence $xs$ is either empty $[]$ or has a head
+$x$ followed by another sequence $xs'$.
+  
+In the first case we need to show
+\begin{mathpar}
+  \forall l.\hoare{\operatorname{isList} l []}{\langkw{match}\, l\, \langkw{with} ...}{v.v=() \wedge \operatorname{isList} l (\operatorname{map} (1+) [])}
+\end{mathpar}
+and in the second
+\begin{mathpar}
+\forall x,xs'.\forall l.\hoare{\operatorname{isList} l (x::xs')}{\langkw{match}\, l\, \langkw{with} ...}{v.v=() \wedge \operatorname{isList} l (\operatorname{map} (1+) (x::xs'))}
+\end{mathpar}
+where in the body we have replaced $\langkw{inc}$ with the function
+$f$ for which we assume the triple (the assumption of the premise of
+the \ruleref{Ht-Rec} rule)
+\begin{align}
+  \label{eq:list-inc-recursion-hyp}
+  \forall xs.\forall l.
+  \hoare{\operatorname{isList} l xs}{f l}{v.v=() \wedge \operatorname{isList} l (\operatorname{map} (1+) xs)}.
+\end{align}
+%
+In both cases we proceed by the derived match rule from
+Exercise~\ref{exercise:derived-match-rule}, as the $\operatorname{isList}$
+predicate tells us enough information to determine the chosen branch
+of the match statement.
+
+In the first case we have
+$\operatorname{isList} l [] \equiv l = \langkw{inj}_1()$, and thus we
+easily prove
+\begin{mathpar}
+  \hoare{\operatorname{isList} l []}{l}{v.v=\Inj1() * \operatorname{isList} l []}
+\end{mathpar}
+by \ruleref{Ht-frame} and \ruleref{Ht-Pre-Eq} followed by \ruleref{Ht-ret}.
+
+Thus we know the first branch is taken and so according to the derived match rule from Exercise~\ref{exercise:derived-match-rule} we need to show the following triple.
+\begin{mathpar}
+  \hoare{\operatorname{isList} l []}{()}{v.v=() * \operatorname{isList} l (\operatorname{map} (+1) [])} 
+\end{mathpar}
+which follows by \ruleref{Ht-ret} after framing away $\operatorname{isList} l []$, which is allowed as $\operatorname{map} (+1) [] \equiv []$.
+
+In the case where the sequence is not empty we have that
+\begin{align*}
+  \operatorname{isList} l (x::xs) \equiv \exists hd, l'. l = \Inj2 hd * hd \pointsto (x,l') * \operatorname{isList} l' xs'
+\end{align*}
+and thus we can prove
+\begin{align*}
+  \hoareV
+  { l = \Inj2 hd * hd \pointsto (x,l') * \operatorname{isList} l' xs'}
+  {l}
+  {r.r=\Inj2 hd * l = \Inj2 hd * hd \pointsto (x,l') * \operatorname{isList} l' xs'}
+\end{align*}
+for some $l'$ and $hd$, using the rule \ruleref{Ht-exist}, the frame rule, the \ruleref{Ht-Pre-Eq} rule, and the \ruleref{Ht-ret} rule.
+\begin{exercise}
+  \label{exercise:isList-second-case}
+  Prove this Hoare triple in detail using the rules just mentioned.
+\end{exercise}
+This is enough to determine that the match takes the second branch, and using the derived match rule from Exercise~\ref{exercise:derived-match-rule} we proceed to verify the body of the second branch.
+Using the rules \ruleref{Ht-let-det-temp} and \ruleref{Ht-Proj} repeatedly we quickly prove 
+\begin{align*}
+  \hoareV{ l = \Inj2 hd * hd \pointsto (x,l') * \operatorname{isList} l' xs'}
+  {\begin{array}{l}
+     \Let h = \Proj1 !hd in\\
+     \Let t = \Proj2 !hd in\\
+     hd \gets (h + 1, t)
+   \end{array}}
+  {l = \Inj2 hd * hd \pointsto (x + 1,l') * \operatorname{isList} l' xs' * t = l' * h = x}
+\end{align*}
+Now
+\begin{align*}
+  l = \Inj2 hd * hd \pointsto (x + 1,l') * \operatorname{isList} l' xs' * t = l' * h = x
+\end{align*}
+clearly implies
+\begin{align*}
+  l = \Inj2 hd * hd \pointsto (x + 1,l') * \operatorname{isList} t xs'
+\end{align*}
+and thus, by the sequencing rule \ruleref{Ht-seq-temp} and the rule of
+consequence \ruleref{Ht-csq}, we are left with proving
+\begin{align*}
+  \hoareV
+  {l = \Inj2 hd * hd \pointsto (x + 1,l') * \operatorname{isList} t xs'}
+  {f t}
+  {r.r= () * \operatorname{isList} l (\operatorname{map} (+1) (x::xs'))}
+\end{align*}
+which follows from the induction hypothesis~\eqref{eq:list-inc-recursion-hyp}, and the definition of the $\operatorname{isList}$ predicate.
+\end{example}
+
+\begin{remark}[About functions taking multiple arguments]
+  The programming language \proglang\ only
+  has primitive functions which take a single argument.  Functions
+  taking multiple arguments can be encoded as either higher-order
+  functions returning functions, or as functions taking tuples as
+  arguments.
+
+  Therefore we use some syntactic sugar to write functions taking
+  multiple arguments in a more readable way.  We write
+  \begin{displaymath}
+    \Rec{f} x, y = e
+  \end{displaymath}
+  for the following term
+  \begin{displaymath}
+    \Rec{f} p = \Let x = \Proj{1} p in \Let y = \Proj{2} p in e.
+  \end{displaymath}
+  This notation is generalised in an analogous way to three and more arguments.
+  The corresponding derived Hoare rule is the following
+  \begin{mathpar}
+    \inferH{Ht-Rec-multi}
+    { \Gamma, g : \Val \mid S \land \All z . \All v_1. \All v_2. \hoare{P}{g (v_1,v_2)}{u.Q } \proves \All z . \All v_1. \All v_2 . \hoare{P}{e[g/f,v_1/x,v_2/y]}{u.Q}}
+    { \Gamma \mid S \proves \All z . \All v. \hoare{\Exists v_1, v_2 . v = (v_1,v_2) \land P}{(\Rec{f} x, y = e)v}{u.\Exists v_1, v_2 . v = (v_1,v_2) \land Q}}
+  \end{mathpar}
+  where we assume that the variable $v$ is fresh for $P$ and $Q$.
+\end{remark}
+\begin{exercise}
+  Derive the rule~\ruleref{Ht-Rec-multi}.
+\end{exercise}
+
+\begin{exercise}
+  \label{exercise:append}
+  Let $\langkw{append}$ be the following function, which
+  takes two linked lists as arguments and returns 
+  a list which is the concatenation of the two.
+  \begin{displaymath}
+    \Rec{\ \langkw{append}} l, l' =
+    \MatchML{l}with{\Inj{1} x_1}=>{l'}|{\Inj{2} x_2}=>{\begin{array}[t]{l}\Let p = \deref x_2 in\\
+                                                         \Let r = \langkw{append}\, (\Proj{2} p)\, l' in\\
+                                                         x_2 \gets (\Proj{1} p, r);\\
+                                                         \Inj{2} x_2
+                                                       \end{array}}end{}
+  \end{displaymath}
+  We wish to give it the following specification where $\mdoubleplus$ is append on mathematical sequences.
+  \begin{displaymath}
+    \forall xs, ys, l, l'.\hoare{\operatorname{isList} l\, xs \ast \operatorname{isList} l'\,ys}{\langkw{append}\,l\,l'}{v.\operatorname{isList} v\,(xs \mdoubleplus ys)}.
+  \end{displaymath}
+
+  \begin{itemize}
+  \item Prove the specification.
+  \item Is the following specification also valid?
+    \begin{align*}
+      \forall xs, ys, l, l'.\hoare{\operatorname{isList} l\, xs \land \operatorname{isList} l'\,ys}{\langkw{append}\,l\,l'}{v.\operatorname{isList} v\,(xs \mdoubleplus ys)}
+    \end{align*}
+    Hint: Think about what is the result of $\langkw{append}\,l\,l$.
+  \end{itemize}
+\end{exercise}
+
+\begin{exercise}
+  The \langkw{append} function in the previous exercise
+  is not tail recursive and hence its space consumption is
+  linear in the length of the first list.
+  A better implementation of append for linked lists is the following.
+  %  
+  \begin{align*}
+    \langkw{append'}\ l\ l' ={} &\Let go = \Rec{f} {h\,p} =
+    \MatchML{h}with{\Inj{1} x_1}=>{p \gets (\Proj{1}(\deref p), l')}|{\Inj{2} x_2}=>{f\, (\Proj{2}(\deref x_2))\, x_2}end{}\\
+    &in \MatchML{l}with{\Inj{1} x_1}=>{l'}|{\Inj{2} x_2}=>{\begin{array}[t]{l}go\ l\ x_2 ;\\ l\end{array}}end{}
+  \end{align*}
+  In the function $go$ the value $p$ is the last node of the list $l$ we have seen while traversing $l$.
+  Thus $go$ traverses the first list and once it reaches the end it updates the tail pointer in the last node to point to the second list, $l'$.
+
+  Prove for $\langkw{append'}$ the same specification as for $\langkw{append}$ above.
+  You need to come up with a strong enough invariant for the function $go$, relating $h$, $p$ and $xs$ and $ys$.
+\end{exercise}
+
+\begin{exercise}
+  Implement, specify and prove correct a \langkw{length} function for linked lists.
+\end{exercise}
+
+\begin{exercise}
+  Using the above specifications, construct a program using \langkw{append} and \langkw{length}, give it a reasonable specification and prove it.
+\end{exercise}
+
+For the following example, we need to relate a linked list to the
+reversal of a mathematical sequence. The reverse function on sequences
+is defined as follows:
+\begin{align*}
+  \operatorname{reverse} [] &\equiv []\\
+  \operatorname{reverse} (x::xs) &\equiv \operatorname{reverse} xs \mdoubleplus [x]  
+\end{align*}
+
+\begin{example}
+  Consider the following program which performs the in-place reversal of a linked list using an accumulator to remember the last element which the function visited:
+  \begin{displaymath}
+    \Rec{\langkw{rev}} l, acc =
+    \MatchML{l}with{\Inj{1} x_1}=>{acc}|{\Inj{2} x_2}=>{\begin{array}[t]{l}\Let h = \Proj{1} \deref x_2 in\\ \Let t = \Proj{2} \deref x_2 in\\ x_2 \gets (h,acc) ;\\ \langkw{rev}(t,l)\end{array}}end{}
+  \end{displaymath}
+  Intuitively we wish to give it the following specification:
+  \begin{mathpar}
+    \forall vs.\forall hd.
+    \hoare{\operatorname{isList} hd~vs}{\langkw{rev}(hd,\Inj1 ())}{r. \operatorname{isList} r~(\operatorname{reverse} vs)}
+  \end{mathpar}
+
+  The resulting induction hypothesis is, however, not strong enough,
+  and we need to \emph{strengthen} the specification. On the one hand,
+  we are now proving a stronger statement, which requires more
+  work. On the other, we get to leverage a much stronger induction
+  hypothesis, eventually allowing the proof to go through.
+  
+  We generalize the specification of \langkw{rev} to the following specification:
+  \begin{mathpar}
+    \forall vs, us.\forall hd,acc.\hoare{\operatorname{isList} hd\ vs * \operatorname{isList} acc\ us}{\langkw{rev}(hd,acc)}{r. \operatorname{isList} r (\operatorname{reverse} vs \mdoubleplus us)}
+  \end{mathpar}
+
+  \begin{exercise}
+    Consider a tail recursive implementation of reverse on mathematical sequences, as defined by the following equations:
+    \begin{align*}
+      &\operatorname{reverse'} [] acc \equiv acc\\
+      &\operatorname{reverse'} (x::xs) acc \equiv \operatorname{reverse'} xs (x::acc)
+    \end{align*}
+    Convince yourself that $\forall xs. \operatorname{reverse'} xs [] \equiv \operatorname{reverse}{xs}$ is not directly provable by induction as the resulting induction hypothesis is too weak. 
+  \end{exercise}
+  
+  
+  \begin{exercise}
+    Prove that in-place reversing twice yields the original list.
+  \end{exercise}
+  
+
+  We here proceed with the proof of the general specification. The
+  strategy is the same as in the case of the \langkw{inc} function: we
+  use the \ruleref{Ht-Rec} rule and case analysis on the sequence $vs$,
+  followed by the derived match rule.
+
+  If $vs=[]$, we argue that
+  \begin{mathpar}
+    \hoare{\operatorname{isList} l~[] * \operatorname{isList} acc~us}{l}{r.r=\Inj1() * \operatorname{isList} acc~us}
+  \end{mathpar}
+  and thus by using the derived rule for match from Exercise~\ref{exercise:derived-match-rule} we need to show the following triple for the first branch of the match.
+  \begin{mathpar}
+    \hoare{\operatorname{isList} acc~us}{acc}{r.\operatorname{isList} r (\operatorname{reverse} [] \mdoubleplus us)}
+  \end{mathpar}
+  This is easily seen to hold as $\operatorname{reverse} [] \mdoubleplus us \equiv us$.
+
+  If $vs=v::vs'$ for some $v$ and $vs'$, then we see, by unfolding the
+  $\operatorname{isList}$ predicate, that there exists $l',hd$ such
+  that
+  \begin{mathpar}
+    \hoareV{\operatorname{isList} l~(v::vs') * \operatorname{isList} acc~us}{l}{r.r=\Inj2 hd * l = r * hd\pointsto(v,l') * \operatorname{isList} l'~vs' * \operatorname{isList} acc~us}
+  \end{mathpar}
+  and we are thus in the second branch of the match.
+  We start by showing
+  \begin{align*}
+    \hoareV{l = \Inj2 hd * hd\pointsto(v,l') * \operatorname{isList} l'~vs' * \operatorname{isList} acc~us}
+    {\begin{array}{l}
+       \Let h = \Proj1 !hd in\\
+       \Let t = \Proj2 !hd in\\
+       hd\gets(h,acc)
+     \end{array}
+    }
+    {l = \Inj2 hd * hd\pointsto(v,acc) * \operatorname{isList} l'~vs' * \operatorname{isList} acc~us * h = v * t = l'}
+  \end{align*}
+  by repeated applications of \ruleref{Ht-let-det-temp} and \ruleref{Ht-Proj}.
+  Clearly the proposition
+  \begin{align*}
+    l = \Inj2 hd * hd\pointsto(v,acc) * \operatorname{isList} l'~vs' * \operatorname{isList} acc~us * h = v * t = l'
+  \end{align*}
+  implies the proposition
+  \begin{align*}
+    l = \Inj2 hd * hd\pointsto(v,acc) * \operatorname{isList} t~vs' * \operatorname{isList} acc~us * h = v
+  \end{align*}
+  which is simply
+  \begin{align*}
+    \operatorname{isList} t~vs' * \operatorname{isList} l~(v::us)
+  \end{align*}
+  by definition of the $\operatorname{isList}$ predicate.
+  Finally by using the induction hypothesis (the assumption of \ruleref{Ht-Rec}) we have 
+  \begin{align*}
+    \hoareV{\operatorname{isList} t~vs' * \operatorname{isList} l~(v::us)}
+    {\langkw{rev}(t,l)}
+    {r. \operatorname{isList} r (\operatorname{reverse} vs' \mdoubleplus v::vs)}
+  \end{align*}
+  and we are done, observing that $(\operatorname{reverse} vs' \mdoubleplus v :: vs) \equiv \operatorname{reverse} (v::vs') \mdoubleplus vs$.
+
+  Thus combining all of these using the sequencing rule \ruleref{Ht-seq-temp} and the rule of consequence \ruleref{Ht-csq} we have proved
+  \begin{align*}
+    \hoareV{l = \Inj2 hd * hd\pointsto(v,l') * \operatorname{isList} l'~vs' * \operatorname{isList} acc~us}
+    {\begin{array}{l}
+       \Let h = \Proj1 !hd in\\
+       \Let t = \Proj2 !hd in\\
+       hd\gets(h,acc); \langkw{rev}(t,l)
+     \end{array}
+    }
+    {r. \operatorname{isList} r (\operatorname{reverse} (v::vs') \mdoubleplus vs)}
+  \end{align*}
+  as required.
+\end{example}
+
+\subsection{Abstract Data Types}
+\label{sec:abstract-data-types}
+Suppose we wish to write and specify a simple counter module.
+There are several ways of writing it and specifying it.
+
+The simplest way is to write the following three functions
+\begin{align*}
+  \operatorname{mk\_counter} &= \lambda \_ . \Ref(0)\\
+  \operatorname{inc\_counter} &= \lambda x . x \gets \deref{x} + 1\\
+  \operatorname{read\_counter} &=  \deref{x}
+\end{align*}
+and prove the following three specifications
+\begin{align*}
+  &\hoare{\TRUE}{\operatorname{mk\_counter} \TT}{v. v \pointsto 0}\\
+  &\hoare{\ell \pointsto n}{\operatorname{inc\_counter} \ell}{v. v = \TT \land \ell \pointsto n + 1}\\
+  &\hoare{\ell \pointsto n}{\operatorname{read\_counter} \ell}{v. v = n \land \ell \pointsto n}.
+\end{align*}
+\begin{exercise}
+  Prove the above three specifications.
+\end{exercise}
+
+
+The above specification is unsatisfactory since it completely exposes
+the internals of the counter, which means that it is not modular: if
+we verify a client of the counter relative to the above specification
+and then change the implementation of the counter, then the
+specification will likely also change and we will have to re-verify
+the client.  A more abstract and modular specification is the
+following, which existentially quantifies over the ``counter
+representation predicate'' $C$, thus hiding the fact that the return
+value is a location.
+\begin{align}
+  \label{eq:counter-example:specification-style-we-use}
+  \begin{split}
+    &\Exists C : \Val \to \NN \to \Prop.\\
+    &\hoare{\TRUE}{\operatorname{mk\_counter} \TT}{c. C(c, 0)} \ast \\
+    &\All c . \hoare{C(c, n)}{\operatorname{inc\_counter} c}{v. v = \TT \land C(c, n + 1)} \ast\\
+    &\All c . \hoare{C(c, n)}{\operatorname{read\_counter} c}{v. v = n \land C(c, n)}.
+  \end{split}
+\end{align}
+This approach is not ideal either, because the code, consisting of
+three separate functions, does not provide any abstraction on its own
+(a client of this code would be able to modify directly the contents of the
+reference cell reprensenting the 
+counter rather than only through the read and increment methods)
+and is not the kind of code that realistically would be written.  In a
+typed language, the three functions would typically be sealed in a module,
+and the return type of the $\operatorname{mk\_counter}$
+method would be abstract, only supporting read and write operations.
+
+In our untyped language, we can also hide the internal state and only
+expose the read and increment methods as follows:
+\begin{align*}
+  \operatorname{counter} = \lambda \_ . &\Let x = \Ref(0) in (\lambda \_ . x \gets \deref{x} + 1,\ \lambda \_ . \deref{x})
+\end{align*}
+The idea is that the $\operatorname{counter}$ method returns a pair of
+methods which have a hidden internal state variable $x$.  The
+specification of this counter needs nested Hoare triples.  One
+possibility is the following.  To aid readability we use
+$v.\operatorname{inc}$ in place of $\Proj{1} v$ and analogously for
+$v.\operatorname{read}$.  
+\begin{align*}
+  \hoare{\TRUE}{\operatorname{counter} \TT}
+  {v. \Exists \ell . \begin{array}{l}\ell \pointsto 0 \ast\\
+                       \All n . \hoare{\ell \pointsto n}{v.\operatorname{inc} \TT}{u.u = \TT \land \ell \pointsto (n + 1)} \ast \\
+                       \All n . \hoare{\ell \pointsto n}{v.\operatorname{read} \TT}{u.u = n \land \ell \pointsto n}
+                       \end{array}}
+\end{align*}
+A disadvantage of this specification is,
+again, that it exposes the fact that the internal state is a single
+location which contains the value of the counter.
+
+\begin{exercise}
+  Show that the $\operatorname{counter}$ method satisfies the above specification.
+\end{exercise}
+
+%
+A better, modular, specification completely hides the internal state in an abstract predicate:
+\begin{align}
+  \label{eq:counter-example:specification-style-abstract}
+  \hoare{\TRUE}{\operatorname{counter} \TT}
+  {v. \Exists C : \NN \to \Prop . \begin{array}{l}C(0)\ast\\
+                                    \All n . \hoare{C(n)}{v.\operatorname{inc} \TT}{u.u = \TT \land C(n+1)} \ast \\
+                                    \All n . \hoare{C(n)}{v.\operatorname{read} \TT}{u.u = n \land C(n)}
+                       \end{array}}
+\end{align}
+\begin{exercise}
+  Show this specification of the $\operatorname{counter}$ method.
+  Can you derive it from the previous one?
+  What about conversely?
+  Can you derive the previous specification from the current one?
+  Hint: Think about another implementation of $\operatorname{counter}$ which satisfies the second specification, but not the first.
+\end{exercise}
+
+
+\begin{exercise}
+  Define the $\operatorname{counter}$ method with the help of the methods $\operatorname{mk\_counter}$, $\operatorname{inc\_counter}$ and $\operatorname{read\_counter}$ and derive specification \eqref{eq:counter-example:specification-style-abstract} from specification \eqref{eq:counter-example:specification-style-we-use}.
+\end{exercise}
+
+
+Ideally we would want to use this combination of code and specification.  However, it
+has some practical usability downsides  when used in the
+accompanying Coq formalization.  Chief among them is that it is easier
+to define, \eg{} an $\mathbf{is\_counter}$ predicate, and use that
+instead of always having to deal with eliminating an existentially
+quantified predicate.  To make the proofs more manageable, 
+we will therefore usually write modules
+and specifications in the style of
+\eqref{eq:counter-example:specification-style-we-use} and understand
+that we let go of abstraction at the level of the programming language.
+
+As long as we are only using the specifications of programs it does not matter that the actual implementation exposes more details.
+And as we will see in examples, this is how we prove clients of modules.
+When working in Coq, for instance, we can ensure this mode of use of code and specifications using Coq's abstraction features.
+
+\subsubsection{Abstract Data Types and Ownership Transfer: a Stack Module}
+\label{sec:ownership-transfer}
+
+We wish to specify a stack module with three methods, $\operatorname{mk\_stack}$ for creating the stack, and $\operatorname{push}$ and $\operatorname{pop}$ methods for adding and removing elements from the top of the stack.
+Drawing inspiration from the previous section, we might come up with the following specification of the stack module.
+\begin{align}
+  \label{eq:example:simple-stack-specification}
+  \begin{split}
+    &\Exists \mathrm{isStack} : \Val \to \mathrm{list} \Val \to\Prop.\\
+    &\qquad \hoare{\TRUE}{\operatorname{mk\_stack} \TT}{s. \mathrm{isStack}(s,[])} \land \\
+    &\qquad \forall s. \forall x, xs. \hoare{\mathrm{isStack}(s,xs) }{\operatorname{push} (x,s)}{v. v = \Inj{1}\TT \land \mathrm{isStack}(s,x::xs)} \land\\
+    &\qquad \forall s. \forall x, xs. \hoare{\mathrm{isStack}(s,x::xs)}{\operatorname{pop} (s)}{v. v = \Inj{2}x\land \mathrm{isStack}(s,xs)}
+  \end{split}
+\end{align}
+Here $\mathrm{isStack}(s, xs)$ is an assertion stating that $s$ is a stack, which contains the list of elements $xs$ (in the specified order).
+The specifications of $\operatorname{push}$ and $\operatorname{pop}$ are self-explanatory.
+This specification is useful for verification of certain clients,
+namely those that push and pop pure values, such as numbers, strings,
+and integers, to and from the stack.
+However, it is not strong enough to verify clients which operate on stacks of, \eg{} locations. 
+\begin{exercise}
+  Using the stack specification above, show that the program $e$ defined as
+  \begin{align*}
+    \Let s = \operatorname{mk\_stack} () in \operatorname{push}(1,s); \operatorname{push}(2,s); \operatorname{pop}(s) ; \operatorname{pop}(s)
+  \end{align*}
+  satisfies the specification
+  \begin{displaymath}
+    \hoare{\TRUE}{e}{v.v = \Inj{2}1}. \qedhere
+  \end{displaymath}
+\end{exercise}
+
+The reason the stack specification above suffices for reasoning about
+stack clients that push and pop pure values is that all relevant information
+about a pure value is contained in the value itself.
+In contrast, the meaning of other values, such as locations, depends
+on other features, \eg\, for the case of locations, the heap.
+Thus to be able to reason about clients that push and pop other values
+than pure values, we need a specification which allows us to transfer 
+this additional information to and from the stack.
+To this end, we change the specification such that 
+the $\mathrm{isStack}$ predicate does not specify a list of values
+directly but rather their properties, in the form of Iris predicates which hold for the values stored in the stack.
+
+The new specification of the stack module is thus as follows.
+\begin{align}
+  \label{eq:example:general-stack-specification}
+  \begin{split}
+    &\Exists \mathrm{isStack} : \Val \to \mathrm{list} (\Val \to \Prop) \to \Prop.\\
+    &\qquad \hoare{\TRUE}{\operatorname{mk\_stack} \TT}{s. \mathrm{isStack}(s,[])} \land \\
+    &\qquad \forall s. \forall \Phi . \forall \Phi{s}. \hoare{\mathrm{isStack}(s,\Phi{s}) * \Phi(x)}{\operatorname{push} (x,s)}{v. v = \TT \land \mathrm{isStack}(s,\Phi :: \Phi{s})} \land\\
+    &\qquad \forall s. \forall \Phi . \forall \Phi{s}. \hoare{\mathrm{isStack}(s,\Phi :: \Phi{s})}{\operatorname{pop} (s)}{v. \Phi(v) \ast \mathrm{isStack}(s,\Phi{s})}
+  \end{split}
+\end{align}
+There are several things to notice about this specification.
+First is the universal quantification over arbitrary predicates $\Phi$ and lists of predicates $\Phi{s}$, this makes the specification \emph{higher-order}.
+
+The second thing to notice is the \emph{ownership transfer} in the specifications of $\operatorname{push}$ and $\operatorname{pop}$ methods.
+This is related to the ownership reading of assertions explained in Section~\ref{sec:propositions-and-entailment} above.
+The idea is that, when pushing, the client of the stack transfers the resources associated with the element $x$ (the assertion $\Phi(x)$) to the stack.
+Conversely, when executing the $\operatorname{pop}$ operation the client of the stack gets the value $v$ and the resources associated with the value (the assertion $\Phi(v)$).
+
+An example of a resource that can be transferred 
+is the points to assertion $\ell \pointsto 3$. In this case, the
+$\Phi$ predicate would be instantiated with $\lambda x.x \pointsto 3$.
+\begin{exercise}
+  Derive specification~\eqref{eq:example:simple-stack-specification} from the more general specification~\eqref{eq:example:general-stack-specification}.
+\end{exercise}
+
+
+To see where this more general specification is useful let us consider an example client.
+\begin{align}
+  \label{eq:example-program-stack-of-locations}
+  \begin{split}
+    &\Let s = \operatorname{mk\_stack} () in \\
+    &\Let x_1 = \Ref(1) in \\
+    &\Let x_2 = \Ref(2) in \\
+    & \operatorname{push}(x_1,s); \operatorname{push}(x_2,s); \operatorname{pop}(s);\\
+    & \Let y = \operatorname{pop}(s) in\\
+    & \MatchML{y}with\Inj{1} \TT=>{\TT}|{\Inj{2} \ell}=>{\deref \ell}end{}
+  \end{split}
+\end{align}
+\begin{exercise}
+  Show the following specification of the program~\eqref{eq:example-program-stack-of-locations}.
+  \begin{displaymath}
+    \hoare{\TRUE}{\eqref{eq:example-program-stack-of-locations}}{v.v = 1}. \qedhere
+  \end{displaymath}
+\end{exercise}
+
+
+\newcommand{\isPrime}{\ensuremath{\operatorname{isPrime}}}
+\newcommand{\primelocs}{\ensuremath{\operatorname{PrimeLoc}}}
+
+The stronger specification also gives us additional flexibility when specifying functions working with stacks.
+For instance, we can specify a function $f$ which expects a stack of locations pointing to prime numbers and returns a prime number as follows.
+\begin{displaymath}
+  \hoare{\mathrm{isStack}(s, \Phi{s}) \ast \primelocs(\Phi{s})}{f s}{v. \isPrime(v)}
+\end{displaymath}
+where $\primelocs(\Phi)$ asserts that all predicates in $\Phi{s}$ are of a particular form, namely that they hold only for locations which point to prime numbers.
+And $\isPrime(v)$ asserts that $v$ is a prime number.
+We omit its definition here.
+
+The assertion $\primelocs(\Phi{s})$ can be defined by recursion on the list $\Phi{s}$ by the following two cases.
+\begin{align*}
+  \primelocs([]) &\equiv \TRUE\\
+  \primelocs(\Phi :: \Phi{s}) &\equiv \left(\Phi(v) \wand \Exists n . v \pointsto n \ast \isPrime(n)\right) \ast \primelocs(\Phi{s})
+\end{align*}
+
+Such a use case where we want a certain property to hold for all elements of a stack is common.
+Thus it is useful to have a less general stack module specification tailored for the use case.
+The specification we have in mind is
+\begin{align}
+  \label{eq:example:intermediate-stack-specification}
+  \begin{split}
+    &\Exists \mathrm{isStack} : \Val \to \mathrm{list} \Val \to (\Val\to\Prop) \to \Prop.\\
+    & \forall \Phi : \Val \to \Prop. \\
+    &\qquad \hoare{\TRUE}{\operatorname{mk\_stack} \TT}{s. \mathrm{isStack}(s,[],\Phi)} \land \\
+    &\qquad \forall s. \forall xs. \hoare{\mathrm{isStack}(s,xs,\Phi) * \Phi(x)}{\operatorname{push} (x,s)}{v. v = \TT \land \mathrm{isStack}(s,x::xs,\Phi)} \land\\
+    &\qquad \forall s. \forall x, xs. \hoare{\mathrm{isStack}(s,x::xs,\Phi)}{\operatorname{pop} (s)}{v. v =
+      x\land \mathrm{isStack}(s,xs,\Phi) * \Phi(x)}
+  \end{split}
+\end{align}
+The idea is that $\mathrm{isStack}(s, xs, \Phi)$ asserts that $s$ is a stack whose values are $xs$ and all of the values $x \in xs$ satisfy the given predicate $\Phi$.
+The difference from the specification~\eqref{eq:example:general-stack-specification} is that there is a uniform predicate $\Phi$ which \emph{all} the elements have to satisfy, as opposed to having a list of predicates, one for each element of the stack.
+We can derive the specification~\eqref{eq:example:intermediate-stack-specification} from the specification~\eqref{eq:example:general-stack-specification} as follows.
+
+Let $\mathrm{isStack}_g : \Val \to \operatorname{list} (\Val \to \Prop) \to \Prop$ be the predicate associated with the general stack specificaton~\eqref{eq:example:general-stack-specification}.
+We define $\mathrm{isStack}_u : \Val \to \mathrm{list} \Val \to (\Val\to\Prop) \to \Prop$ as
+\begin{align*}
+  \mathrm{isStack}_u(s, xs, \Phi) \equiv \mathrm{isStack}_g(s, \Phi{s}(xs))
+\end{align*}
+where the list $\Phi{s}$ is defined recursively from the list $xs$ as
+\begin{align*}
+  \Phi{s}([]) &\equiv []\\
+  \Phi{s}(x::xs) &\equiv (\lambda y. x = y \land \Phi(y))::\Phi{s}(xs)
+\end{align*}
+\begin{exercise}
+  Using $\mathrm{isStack}_u$ derive the specifications of $\operatorname{mk\_stack}$, $\operatorname{push}$ and $\operatorname{pop}$ as stated in~\eqref{eq:example:intermediate-stack-specification}.
+\end{exercise}
+
+
+%%% Local Variables:
+%%% mode: latex
+%%% TeX-master: "../main.tex"
+%%% End:

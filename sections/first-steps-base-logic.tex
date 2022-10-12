@@ -1,0 +1,1004 @@
+\section{First steps towards the base logic }
+\label{sec:first-steps-towards-base-logic}
+
+The logic introduced thus far is powerful and can be used to verify many examples of tricky concurrent algorithms.
+However there are constructs in the logic, \eg{} Hoare triples, which are responsible for many different reasoning principles, and as such have complex rules involving many different constructs at once, \eg{} the rules \ruleref{Ht-inv-open} and \ruleref{Ht-frame-atomic}.
+In this section we take first steps towards ``logical simplication'', reducing the number of primitives of the logic, and defining as much as possible inside the logic itself.
+That is, of course, not only important for understanding and semantic modelling, but also for building foundational tools for interactive verification in Iris.
+The simplifications described in this section suffice for \emph{using} the Coq implementation of Iris (Section~\ref{sec:iris-coq}).
+
+
+\subsection{Weakest precondition}
+\label{sec:weakest-pre}
+
+We start off by reducing the notion of a Hoare triple to that of a \emph{weakest precondition} assertion, which decouples the program from the precondition.
+Thus the weakest precondition is the minimal connection between the operational semantics of the program and its logical properties.
+It will turn out that, especially when using the Iris logic in the Coq proof assistant, it is often easier and more direct to use the weakest precondition assertion instead of (derived) Hoare triples.
+
+Without further hesitation here is the typing rule for the new assertion.
+\begin{mathpar}
+  \infer[]
+  {\El \subseteq \textlog{InvName} \and \hastype{\Gamma}{e}{\Expr} \and \hastype{\Gamma}{\Phi}{\Val \to \Prop}}
+  {\hastype{\Gamma}{\wpre{e}[\El]{\Phi}}{\Prop}}
+\end{mathpar}
+In the same way that we write $v.Q$ in postconditions of Hoare triples we will write $v.Q$ instead of $\lambda v.Q$ in $\wpre{e}[\El]{v.Q}$.
+As evident in the typing rule, in the assertion $\wpre{e}[\El]{\Phi}$ $e$ is a closed term, $\Phi$ is an assertion, and $\El$ is the set of invariant names, playing the same role as it does in Hoare triples.
+\begin{remark}
+  One can think of the mapping $\Phi \mapsto \wpre{e}[\El]{\Phi}$ as the semantics of the term capturing those aspects of the behaviour we care about, e.g., safety.
+  In this way it embeds the terms of the programming language into assertions of the logic.
+\end{remark}
+The intended meaning of the weakest precondition becomes clearer when we define Hoare triples in terms of it as
+\begin{align*}
+  \hoare{P}{e}{\Phi}[\El] \eqdef \persistently\left(P \wand \wpre{e}[\El]{\Phi}\right).
+\end{align*}
+Thus, $\wpre{e}[\El]{\Phi}$ is indeed the \emph{weakest} (\ie{} implied by any other) precondition such that $e$ runs safely and if it terminates with a value $v$, the assertion $\Phi(v)$ holds.
+Further, the use of the $\persistently$ modality is crucial.
+Indeed, without it the Hoare triple assertion would not be duplicable, which would mean that we could not use the specification of the method we proved more than once.
+Using the $\persistently$ modality guarantees that all the non-persistent resources required by $e$ are contained in $P$, \ie{} that all exclusive resources $e$ needs to run safely are in $P$.
+
+This is consistent with the reading of Hoare triples explained in Section~\ref{sec:invariants}, where we explained that the resource required to run $e$ are either in the precondition $P$, or owned by invariants, and invariants are persistent assertions.
+
+The basic rules of this new assertion are listed in Figure~\ref{fig:wp-rules} on page~\pageref{fig:wp-rules}.
+The first part of the figure are basic structural rules.
+The rule \ruleref{wp-mono} is analogous to the rule of consequence for Hoare triples, whereas the rule \ruleref{wp-frame} is analogous to the frame rule \ruleref{Ht-frame}, and the rule \ruleref{wp-frame-step} is analogous to the rule~\ruleref{Ht-frame-atomic}.
+In fact, these rules for weakest precondition are used to derive the corresponding rules for Hoare triples.
+Next we have the expected rule \ruleref{wp-val}, and the important rule \ruleref{wp-bind} which, analogously to the rule \ruleref{Ht-bind}, allows one to deconstruct the term into an evaluation context and a basic term for which we can use one of the basic rules for the weakest precondition assertion.
+
+The rules for basic language constructs are stated in a style akin to the continuation passing style of programs, with an arbitrary postcondition $\pred$.
+This style allows for easy symbolic execution of programs, and circumvents the constant use of the rules \ruleref{wp-mono} and \ruleref{wp-frame}.
+To see why this is so let us look at an alternative formulation of \ruleref{wp-alloc}.
+This formulation is much closer to the Hoare triple rule \ruleref{Ht-alloc}.
+\begin{example}
+  The rule
+  \begin{mathpar}
+    \inferH
+    {wp-load-direct}
+    { }
+    {\later(\loc \pointsto \val) \proves{} \wpre {\deref \loc}{u.u = v \ast \loc \pointsto \val}}
+  \end{mathpar}
+  is equivalent to the rule \ruleref{wp-load}.
+
+  First we derive \ruleref{wp-load} from \ruleref{wp-load-direct}.
+  Assuming \ruleref{wp-load-direct} we have by \ruleref{wp-frame-step}
+  \begin{align*}
+    \later(\loc \pointsto \val) * \later (\loc \pointsto \val \wand \pred(\val))
+    &\proves{}
+    \wpre {\deref \loc}{u.u = v \ast \loc \pointsto \val} \ast \later (\loc \pointsto \val \wand \pred(\val))\\
+    &\proves{}
+    \wpre {\deref \loc}{u.u = v \ast \loc \pointsto \val \ast (\loc \pointsto \val \wand \pred(\val))}
+  \end{align*}
+  which by \ruleref{wp-mono} yields $\wpre{\deref \loc}{\pred}$.
+
+  As you can see, the derivation required the use of \ruleref{wp-frame-step} and \ruleref{wp-mono}.
+  If we were to use the rule \ruleref{wp-load-direct} in the proofs we would have to use these two structural rules constantly, which is tedious.
+
+  The converse derivation is straightforward.
+  Assuming \ruleref{wp-load} we have
+  \begin{align*}
+    \later(\loc \pointsto \val) &\proves{}
+    \later(\loc \pointsto \val) \ast \later\left(\loc \pointsto \val \wand (\val = \val \ast \loc \pointsto \val)\right)\\
+    &\proves{} \wpre{\deref \loc}{u. u = v \ast \loc \pointsto \val}
+  \end{align*}
+  where in the last step we used the rule~\ruleref{wp-load} with $\Phi(u)$ being $u = v \ast \loc \pointsto v$.
+\end{example}
+
+\begin{figure}[htbp]
+  Structural rules.
+\begin{mathpar}
+  \inferH{wp-mono}
+  { }
+  {(\All \val. \pred(\val) \wand \predB(\val)) * \wpre{\expr}[\El]{\pred} \proves{} \wpre{\expr}[\El]{\predB}}
+  \and
+  \inferH{wp-frame}
+  { }
+  {\prop * \wpre{\expr}[\El]{\pred} \proves{} \wpre{\expr}[\El]{\prop * \pred}}
+  \and
+  \infer[wp-frame-step]
+  {\expr \notin \Val }
+  {\later \prop * \wpre{\expr}[\El]{\pred} \proves{} \wpre{\expr}[\El]{\prop * \pred}}
+  \and
+  \inferH{wp-val}
+  { }
+  {\pred(\val)\proves{} \wpre{\val}[\El]{\pred}}
+  \and
+  \inferH{wp-bind}
+  { }
+  {\wpre{\expr}[\El]{\Ret\val. \wpre{\fillctx\lctx[\val]}[\El]{\pred}} \proves{} \wpre{\fillctx\lctx[\expr]}[\El]{\pred}}
+\end{mathpar}
+Rules for basic language constructs.
+\begin{mathpar}
+  \inferH{wp-fork}
+  { }
+  {\later \pred\TT * \later \wpre{\expr}[\El]{\Ret\val. \TRUE} \proves{} \wpre{\Fork\expr}[\El]{\pred}}
+  \and
+  \inferH{wp-alloc}
+  { }
+  {\later (\All \loc. \loc \pointsto \val \wand {\pred(\loc)}) \proves{} \wpre{\Ref(\val)}[\El]{\pred}}
+  \and
+  \inferH{wp-load}
+  { }
+  {\later(\loc \pointsto \val) * \later (\loc \pointsto \val \wand \pred(\val))\proves{} \wpre{\deref \loc}[\El]{\pred}}
+  \and
+  \inferH{wp-store}
+  { }
+  {\later(\loc \pointsto \val) * \later (\loc \pointsto \valB \wand \pred\TT) \proves{} \wpre{(\loc \gets \valB)}[\El]{\pred}}
+  \and
+  \inferH{wp-CAS-suc}
+  { }
+  {\later(\loc \pointsto \val) * \later (\loc \pointsto \valB \wand \pred(\True)) \proves{} \wpre{\CAS(\loc, \val, \valB)}[\El]{\pred}}
+  \and
+  \inferH{wp-CAS-fail}
+  { }
+  {\val \neq \val' \land\later(\loc \pointsto \val) * \later (\loc \pointsto \val \wand \pred(\False)) \proves{} \wpre{\CAS(\loc,\val',\valB)}[\El]{\pred}}
+  \and
+  \inferH{wp-rec}
+  { }
+  {\later \wpre{\subst{\subst \expr \lvarA \val}{f}{(\Rec{f} \lvarA = \expr)}}[\El]{\pred} \proves{} \wpre{(\Rec{f} \lvarA = \expr) \val}[\El]{\pred}}
+  \and
+  \inferH{wp-proj}
+  { }
+  {\later \wpre{v_i}[\El]{\pred} \proves{} \wpre{\Proj{i}(v_1,v_2)}[\El]{\pred}}
+  \and
+  \inferH{wp-if-true}
+  { }
+  {\later\wpre{e_1}[\El]{\pred} \proves{} \wpre{\If \True then e_1 \Else e_2}[\El]{\pred}}
+  \and
+  \inferH{wp-if-false}
+  { }
+  {\later\wpre{e_2}[\El]{\pred} \proves{} \wpre{\If \False then e_1 \Else e_2}[\El]{\pred}}
+  \and
+  \inferH{wp-match}
+  { }
+  {\later\wpre{e_i\left[u/x_i\right]}[\El]{\pred} \proves{} \wpre{\Match{\Inj{i} u}with{\Inj{1}x_1}=>{e_1}|{\Inj{2}x_2}=>{e_2}end}[\El]{\pred}}
+\end{mathpar}
+\caption{Rules for the weakest precondition assertion.}
+\label{fig:wp-rules}
+\end{figure}
+
+\begin{exercise}
+  Suppose we only had Hoare triples as a primitive in the logic, and we did not have the weakest precondition assertion.
+  It turns out we can define, in the logic, an assertion $\wpre{e}[\El]{v.Q}$ which satisfies the rules in Figure~\ref{fig:wp-rules} as follows.
+  \begin{align*}
+    \wpre{e}[\El]{\Phi} \eqdef \Exists P . P \ast \hoare{P}{e}{\Phi}[\El].
+  \end{align*}
+  \begin{itemize}
+  \item Show that $\hoare{P}{e}{\Phi}[\El] \ast P$ entails $\wpre{e}[\El]{\Phi}$, \ie{} if the Hoare triple $\hoare{P}{e}{\Phi}[\El]$ holds then the precondition $P$ implies $\wpre{e}[\El]{\Phi}$, \ie{} show the following entailment
+    \begin{align*}
+      \hoare{P}{e}{\Phi}[\El] \proves P \wand \wpre{e}[\El]{\Phi}
+    \end{align*}
+  \item Show the rules in Figure~\ref{fig:wp-rules} for $\wpre{e}[\El]{\Phi}$ as defined here from the rules for Hoare triples described in the preceding sections. \qedhere
+  \end{itemize}
+\end{exercise}
+
+This exercise shows that the notions of Hoare triples and weakest
+preconditions are, at least with respect to the rules in Figure~\ref{fig:wp-rules} and analogous rules for Hoare triples, essentially equivalent.
+The weakest precondition is the more minimal of the two, however, since it factors out the precondition.
+Further, we shall see in the next sections that some of the interactions with invariants can be more easily stated for the weakest precondition assertion.
+This leads to smaller, more manageable, and principal rules.
+
+Finally, notice that the rules in Figure~\ref{fig:wp-rules} do not support working with invariants.
+Opening and closing of invariants is an operation that is of independent interest, \eg{} the ability to open and close invariants independently of Hoare triples is needed to define the concept of \emph{logically atomic triples}%
+\footnote{Logically atomic triples allow some reasoning principles, such as opening of invariants, also around programs which are ``logically atomic'', \eg{} they use locks, but are not atomic in the sense that they evaluate to a value in a single execution step.}, so it should not be tied to Hoare triples or the weakest precondition assertion directly.
+To support it we introduce a new concept, the \emph{fancy update modality}.
+
+\subsection{Fancy update modality}
+\label{sec:fancy-update}
+
+The fancy update modality allows us to get resources out of knowledge that an invariant exists, \ie{} to get $P$ from $\knowInv{\iota}{P}$, and to put resources back into an invariant, \ie{} to close the invariant.
+As we explained in Section~\ref{sec:invariants} invariants are persistent, in particular duplicable.
+Thus we cannot simply get resources out of invariants in the sense of the rule $\knowInv{\iota}{P} \proves{} P$ or $\knowInv{\iota}{P} \proves{} \later P$; this would lead to inconsistency.
+We need to keep track of the fact that we were allowed to open this particular invariant, and that we are not allowed to open this particular invariant again until we have closed it.
+Thus, the rule for opening invariants will be
+\begin{mathpar}
+  \infer
+  {\iota \in \El}
+  {\knowInv{\iota}{P} \proves \pvs[\mask][\mask\setminus\{\iota\}]\later P}
+\end{mathpar}
+where $\pvs[\mask_1][\mask_2]$ is the \emph{fancy update modality},
+and $\mask_1$ and $\mask_2$ are masks,
+\ie{} sets of invariant names (cf. Section~\ref{sec:invariants}).
+
+The intuition behind the modality $\pvs[\mask_1][\mask_2] P$ is that
+it contains resources $r$ which, together with resources in invariants named $\mask_1$, can be updated (via frame preserving update) to resources which can be split into resources satisfying $P$ and resources in invariants named $\mask_2$.
+Thus in particular the fancy update modality subsumes the update modality $\pvs$ introduced in Section~\ref{sec:invar-ghost-state}, in the sense that $\pvs P \proves{} \pvs[\mask][\mask] P$, \ie{} if the set of invariant names available does not change.
+The rules for the fancy update modality are listed in Figure~\ref{fig:rules-for-fancy-update}.
+We describe the rules now, apart from the rule \ruleref{Fup-timeless}, which we describe in the next section, when we introduce the notion of timelessness.
+%
+\begin{figure}[htbp]
+  \centering
+  \begin{mathpar}
+    \inferH{Fup-mono}
+    {P \proves Q}
+    {\pvs[\mask_1][\mask_2]P \proves \pvs[\mask_1][\mask_2] Q}
+    \and
+    \inferH{Fup-intro-mask}
+    {\mask_2 \subseteq \mask_1}
+    {P \proves \pvs[\mask_1][\mask_2]\pvs[\mask_2][\mask_1] P}
+    \and
+    \inferH{Fup-trans}
+    {\ }
+    {\pvs[\mask_1][\mask_2]\pvs[\mask_2][\mask_3] P \proves \pvs[\mask_1][\mask_3] P}
+    \and
+    \inferH{Fup-frame}
+    {\mask_f \text{ disjoint from } \mask_1 \cup \mask_2 }
+    {Q \ast \pvs[\mask_1][\mask_2] P \proves \pvs[\mask_1 \uplus \mask_f][\mask_2 \uplus \mask_f] (Q \ast P) }
+    \and
+    \inferH{Fup-upd}
+    {\ }
+    {\pvs P \proves \pvs[\mask][\mask] P}
+    \and
+    \inferH{Fup-timeless}
+    {\timelessjudg{P}}
+    {\later P \proves \pvs[\mask][\mask] P}
+    \and
+    \inferH{Inv-alloc}
+    {\mask_1\ \infinite}
+    {\later P \proves \pvs[\mask_2][\mask_2]\Exists \iota \in \mask_1.\knowInv{\iota}{P}}
+    \and
+    \inferH{Inv-open}
+    {\iota \in \mask}
+    {\knowInv{\iota}{P} \proves \pvs[\mask][\mask\setminus\{\iota\}]\left(\later P \ast \left(\later P \wand \pvs[\mask\setminus\{\iota\}][\mask]\TRUE\right)\right)}
+  \end{mathpar}
+  \caption{Basic rules for the fancy update modality.}
+  \label{fig:rules-for-fancy-update}
+\end{figure}
+%
+
+\paragraph{Introduction and structural rules of the fancy update modality}
+The following rules are analogous to the rules for the update modality introduced in Section~\ref{sec:invariants}.
+\begin{mathpar}
+  \infer[Fup-mono]
+  {P \proves Q}
+  {\pvs[\mask_1][\mask_2]P \proves \pvs[\mask_1][\mask_2] Q}
+  \and
+  \infer[Fup-intro-mask]
+  {\mask_2 \subseteq \mask_1}
+  {P \proves \pvs[\mask_1][\mask_2]\pvs[\mask_2][\mask_1] P}
+  \and
+  \infer[Fup-trans]
+  {\ }
+  {\pvs[\mask_1][\mask_2]\pvs[\mask_2][\mask_3] P \proves \pvs[\mask_1][\mask_3] P}
+\end{mathpar}
+The rule \ruleref{Fup-intro-mask} is perhaps a bit surprising since it introduces two instances of the fancy update modality, with swapped masks.
+This generality is useful since, in general, we do not have $P \proves \pvs[\mask_1][\mask_2] P$.
+Indeed, if, for example, $P \proves \pvs[\emptyset][\{\iota\}] P$ was
+provable it would mean that any resource in $P$ could be split into a resource satisfying the invariant named $\iota$, and a resource satisfying $P$.
+This cannot hold in general, of course.
+However, using \ruleref{Fup-trans} together with \ruleref{Fup-intro-mask}, we can derive the following introduction rule where the masks are the same:
+\begin{mathpar}
+  \inferH{Fup-intro}
+  {\ }
+  {P \proves \pvs[\mask][\mask] P}
+\end{mathpar}
+%
+We will write $\pvs[\mask] P$ for $\pvs[\mask][\mask]P$.
+
+Next we have a rule relating the modality with separating conjunction, analogous to \ruleref{upd-frame}, but in addition to framing of resources, we can also frame on additional invariant names $\mask_f$.
+\begin{mathpar}
+  \infer[Fup-frame]
+  {\mask_f \text{ disjoint from } \mask_1 \cup \mask_2 }
+  {Q \ast \pvs[\mask_1][\mask_2] P \proves \pvs[\mask_1 \uplus \mask_f][\mask_2 \uplus \mask_f] (Q \ast P) }
+\end{mathpar}
+The rule perhaps looks daunting.
+The following derived rules are perhaps more natural, since they only manipulate a single concept (either the frame, or the masks) at a time.
+\begin{mathpar}
+  \infer
+  {\ }
+  {Q \ast \pvs[\mask_1][\mask_2] P \proves \pvs[\mask_1][\mask_2]\left(Q \ast P\right)}
+  \and
+  \infer
+  {\mask_1 \subseteq \mask_2 }
+  {\pvs[\mask_1] P \proves \pvs[\mask_2] P}
+\end{mathpar}
+\begin{exercise}
+  Derive the above two rules from \ruleref{Fup-frame}.
+\end{exercise}
+
+Next we have the rule relating fancy update modality with the ordinary update modality.
+The rule states that the fancy update modality is logically weaker than the update modality.
+\begin{mathpar}
+  \infer[Fup-upd]
+  {\ }
+  {\pvs P \proves \pvs[\mask] P}
+\end{mathpar}
+Note that in combination with the previous rules for $\pvs[\mask_1][\mask_2]$, the rules \ruleref{Ghost-alloc} and \ruleref{Ghost-update} remain valid if we replace $\pvs$ with $\pvs[\mask]$, for any mask $\mask$.
+
+\paragraph*{Fancy update modality and invariants}
+Finally, we have rules for allocation and opening of invariants:
+\begin{mathpar}
+  \infer[Inv-alloc]
+  {\mask_1\ \infinite}
+  {\later P \proves \pvs[\mask_2][\mask_2]\Exists \iota \in \mask_1.\knowInv{\iota}{P}}
+  \and
+  \infer[Inv-open]
+  {\iota \in \mask}
+  {\knowInv{\iota}{P} \proves \pvs[\mask][\mask\setminus\{\iota\}]\left(\later P \ast
+    \left(\later P \wand \pvs[\mask\setminus\{\iota\}][\mask]\TRUE\right)\right)}
+\end{mathpar}
+The allocation rule should not be surprising, perhaps apart from the two different sets of invariant names.
+An intuitive reason for why the two sets $\mask_1$ and $\mask_2$ of invariant names are not required to be related is that we only allocate a new invariant -- the mask $\mask_2$ has to do with opening and closing of invariants, as can be seen in \ruleref{Inv-open}.
+
+An equivalent rule to \ruleref{Inv-alloc} is the following
+\begin{mathpar}
+  \inferH{Inv-alloc-empty}
+  {\mask_1\ \infinite}
+  {\later P \proves \pvs[\emptyset][\emptyset]\Exists \iota \in \mask_1.\knowInv{\iota}{P}}
+\end{mathpar}
+\begin{exercise}
+  Derive \ruleref{Inv-alloc} from \ruleref{Inv-alloc-empty}.
+\end{exercise}
+
+
+The rule \ruleref{Inv-open} is used not just to open invariants, but also to close them.
+It implies the following two rules
+\begin{mathpar}
+  \infer
+  {\iota \in \mask}
+  {\knowInv{\iota}{P} \proves \pvs[\mask][\mask\setminus\{\iota\}]\later P}
+  \and
+  \infer
+  {\iota \in \mask}
+  {\knowInv{\iota}{P} \proves \pvs[\mask][\mask\setminus\{\iota\}]\left(\later P \wand \pvs[\mask\setminus\{\iota\}][\mask]\TRUE\right)}
+\end{mathpar}
+The first one of which is the pure invariant opening rule.
+It states that we can get resources out of an invariant, but only \emph{later}.
+Removing the later from the rule would be unsound.
+The second rule is the invariant closing rule.
+It shows how resources can be transferred back into invariants.
+The crucial parts in this rule are the invariant masks.
+In particular, the assertion $\pvs[\mask\setminus\{\iota\}][\mask]\TRUE$ is \emph{not} equivalent to $\TRUE$.
+It contains only those resources which can be combined with resources
+in invariants named $\mask\setminus\{\iota\}$ to get resources in
+invariants named $\mask$, \ie{} it contains the resources in the invariant named $\iota$.
+
+\begin{exercise}
+  \label{exercise:wand-and-fancy-update}
+  Show the following property of the fancy update modality.
+  \begin{align*}
+    \pvs[\mask_1][\mask_2] (P \wand Q) &\proves P \wand \pvs[\mask_1][\mask_2] Q
+  \end{align*}
+\end{exercise}
+
+
+\subsection{The fancy update modality and weakest precondition}
+
+Finally, we have rules connecting the new update modality to the weakest precondition assertion, and thus to Hoare triples and program specfications.
+These rules generalise several of the rules we have seen before.
+In particular \ruleref{Ht-inv-alloc}, \ruleref{Ht-inv-open} and the previous rule \ruleref{Ht-csq} will be derivable from the rules introduced in this section.
+
+The rules for the relationship between the fancy update modality and weakest preconditions are listed in Figure~\ref{fig:fancy-view-shift-and-weakestpre}.
+\begin{figure}[htbp]
+  \centering
+  \begin{mathpar}
+    \inferH{wp-vup}
+    { }
+    {\pvs[\mask] \wpre{e}[\mask]{v.\pvs[\mask]\Phi(v)} \proves{} \wpre{e}[\mask]{\Phi}}
+    \and
+    \inferH{wp-atomic}
+    { e \text{ is an atomic expression }}
+    { \pvs[\mask_1][{\color{red}\mask_2}] \wpre{e}[{\color{red}\mask_2}]{v.\pvs[{\color{red}\mask_2}][\mask_1]\Phi(v)} \proves{}
+      \wpre{e}[\mask_1]{\Phi}}
+    \and
+    \inferH{wp-frame-step}
+    {\expr \notin \Val \and \mask_2 \subseteq \mask_1}
+    {\left(\pvs[\mask_1][\mask_2] \later \pvs[\mask_2][\mask_1]\prop\right) * \wpre{\expr}[\mask_2]{\pred} \proves{} \wpre{\expr}[\mask_1]{\prop * \pred}}
+  \end{mathpar}
+  \caption{Rules connecting fancy view shifts to the weakest precondition assertion.}
+  \label{fig:fancy-view-shift-and-weakestpre}
+\end{figure}
+The rule \ruleref{wp-vup} states that we can remove the update modalities around and inside the weakest precondition assertion.
+This is important because in general we do not have 
+$\pvs[\mask] P \proves P$, and so proving $\pvs[\mask]P$ is weaker than proving $P$.
+The rule \ruleref{wp-vup} states that this is not the case for the weakest precondition assertion.
+We can use this rule to, for example, do frame preserving updates inside the weakest precondition assertion.
+\begin{exercise}
+  Derive the following rule.
+  \begin{mathpar}
+    \infer
+    {a \mupd b}
+    {\wpre{e}[\mask]{v.\Phi(v) \ast \ownGhost{\gamma}{a}} \proves \wpre{e}{v.\Phi(v) \ast \ownGhost{\gamma}{b}}}
+  \end{mathpar}
+\end{exercise}
+
+
+Next is the rule \ruleref{wp-atomic}, which is similar to the rule \ruleref{Ht-inv-open}.
+It is crucial here that $e$ is an atomic expression.
+If it was not then a similar counterexample as the one for the rule \ruleref{Ht-inv-open}, which is explained in Example~\ref{example:restriction-on-atomic-expr-necessary}, would apply, and the weakest precondition assertion would not be sound for the operational semantics of the language.
+The rule is very general, so let us see how it allows us to recover some rules for working with invariants.
+\begin{example}
+  \label{example:wp-invariant-opening}
+  Let $\mask$ be a set of invariant names and $\iota \in \mask$ and \emph{$e$ an atomic expression}.
+  We derive the following rule for accessing invariants using the weakest precondition assertion.
+  \begin{mathpar}
+    \inferH{wp-inv-open}
+    {e \text{ is an atomic expression }}
+    {\knowInv{\iota}{I} \ast \left(\later I \wand \wpre{e}[\mask\setminus\{\iota\}]{v.\later I \ast \Phi(v)}\right)
+    \proves{}
+    \wpre{e}[\mask]{\Phi}}
+  \end{mathpar}
+  We have
+  \begin{align*}
+    \knowInv{\iota}{I} \ast \left(\later I \wand \wpre{e}[\mask\setminus\{\iota\}]{v.\later I \ast \Phi(v)}\right)
+    &\proves \left(\pvs[\mask][\mask\setminus\{\iota\}]\left(\later I \ast \left(\later I \wand \pvs[\mask\setminus\{\iota\}][\mask]\TRUE\right)\right)\right) \ast \left(\later I \wand \wpre{e}[\mask\setminus\{\iota\}]{v.\later I \ast \Phi(v)}\right) \tag{\ruleref{Inv-open}}\\
+    &\proves \pvs[\mask][\mask\setminus\{\iota\}]\left(\left(\later I \ast \left(\later I \wand \pvs[\mask\setminus\{\iota\}][\mask]\TRUE\right)\right) \ast \left(\later I \wand \wpre{e}[\mask\setminus\{\iota\}]{v.\later I \ast \Phi(v)}\right)\right) \tag{\ruleref{Fup-frame}}\\
+    &\proves \pvs[\mask][\mask\setminus\{\iota\}]\left(\left(\later I \wand \pvs[\mask\setminus\{\iota\}][\mask]\TRUE\right) \ast \wpre{e}[\mask\setminus\{\iota\}]{v.\later I \ast \Phi(v)}\right) \tag{\ruleref{wand-E}}\\
+    &\proves \pvs[\mask][\mask\setminus\{\iota\}]\wpre{e}[\mask\setminus\{\iota\}]{v.\left(\later I \wand \pvs[\mask\setminus\{\iota\}][\mask]\TRUE\right) \ast \left(\later I \ast \Phi(v)\right)} \tag{\ruleref{wp-frame}}\\
+    &\proves \pvs[\mask][\mask\setminus\{\iota\}]\wpre{e}[\mask\setminus\{\iota\}]{v.\left(\pvs[\mask\setminus\{\iota\}][\mask]\TRUE\right) \ast \Phi(v)} \tag{\ruleref{wp-mono} and \ruleref{wand-E}}\\
+    &\proves \pvs[\mask][\mask\setminus\{\iota\}]\wpre{e}[\mask\setminus\{\iota\}]{v.\left(\pvs[\mask\setminus\{\iota\}][\mask]\TRUE \ast \Phi(v)\right)} \tag{\ruleref{Fup-frame}}\\
+    &\proves \pvs[\mask][\mask\setminus\{\iota\}]\wpre{e}[\mask\setminus\{\iota\}]{v.\left(\pvs[\mask\setminus\{\iota\}][\mask]\Phi(v)\right)} \tag{\ruleref{Fup-mono}}\\
+    &\proves \wpre{e}{\Phi} \tag{\ruleref{wp-atomic}}
+  \end{align*}
+\end{example}
+The rule derived in the preceding example can be strengthened somewhat. 
+\begin{exercise}
+  Derive the following rules.
+  \begin{align}
+    \label{eq:wp-inv-open-vs-1}
+    \left(\pvs[\mask][\mask]\knowInv{\iota}{I}\right) \ast \left(\later I \wand \wpre{e}[\mask\setminus\{\iota\}]{v.\later I \ast \Phi(v)}\right)
+    &\proves{}
+    \wpre{e}[\mask]{\Phi}\\
+    \label{eq:wp-inv-open-vs-2}
+    \pvs[\mask][\mask]\left(\knowInv{\iota}{I} \ast \left(\later I \wand \wpre{e}[\mask\setminus\{\iota\}]{v.\later I \ast \Phi(v)}\right)\right)
+    &\proves{}
+    \wpre{e}[\mask]{\Phi}\\
+    \label{eq:wp-inv-open-vs-3}
+    \knowInv{\iota}{I} \ast \pvs[\mask][\mask]\left(\later I \wand \wpre{e}[\mask\setminus\{\iota\}]{v.\later I \ast \Phi(v)}\right)
+    &\proves{}
+      \wpre{e}[\mask]{\Phi}\\
+    \label{eq:wp-inv-open-vs-4}
+    \knowInv{\iota}{I} \ast \left(\later I \wand \pvs[\mask\setminus\{\iota\}][\mask\setminus\{\iota\}]\wpre{e}[\mask\setminus\{\iota\}]{v.\later I \ast \Phi(v)}\right)
+    &\proves{}
+    \wpre{e}[\mask]{\Phi}
+  \end{align}
+  These rules perhaps look rather strange, however they show that as long as we are proving a weakest precondition we can most of the time strengthen the assumptions by removing the fancy update modalities, provided the masks match.
+  The rules are thus quite crucial in concrete proofs, and are often used implicitly.
+  In particular when Iris is used in Coq via the interactive proof mode (see Section~\ref{sec:iris-coq}) these, and related rules, are used by the tactics behind the scenes.
+\end{exercise}
+
+
+As we mentioned above the rule \ruleref{wp-atomic} is similar to the rule \ruleref{Ht-inv-open}.
+In fact, the latter is derivable from the rule we derived in Example~\ref{example:wp-invariant-opening}, as we now demonstrate.
+\begin{example}[Derivation of \ruleref{Ht-inv-open} from \ruleref{wp-inv-open}]
+  Let $e$ be an atomic expression.
+  We are to show
+  \newcommand{\maskminus}{\mask \setminus \{\iota \}}
+  \begin{mathpar}
+    \infer[Ht-inv-open]
+    {S \land\knowInv{\iota}{I} \proves \hoare{\later I \ast P}{e}{v.\later I \ast \Phi(v)}[\maskminus]}
+    {S \land\knowInv{\iota}{I} \proves \hoare{P}{e}{\Phi}[\mask]}
+  \end{mathpar}
+  recalling that we have defined $\hoare{P}{e}{\Phi}[\mask]$ as $\persistently \left(P \wand \wpre{e}[\mask]{\Phi}\right)$.
+  Let us show it.
+  Since invariants and Hoare triples are persistent we have
+  \begin{align*}
+    S \land\knowInv{\iota}{I} &\proves{} (S \land\knowInv{\iota}{I}) \land \knowInv{\iota}{I}\\
+                              &\proves{} (\hoare{\later I \ast P}{e}{v.\later I \ast \Phi(v)}[\maskminus]) \land \knowInv{\iota}{I}\\
+                              &\proves{} \persistently \left(\hoare{\later I \ast P}{e}{v.\later I \ast \Phi(v)}[\maskminus] \ast \knowInv{\iota}{I}\right)
+  \end{align*}
+  and thus it suffices to show
+  \begin{align*}
+    \hoare{\later I \ast P}{e}{v.\later I \ast \Phi(v)}[\maskminus] \ast \knowInv{\iota}{I}
+    \proves P \wand \wpre{e}[\mask]{\Phi}.
+  \end{align*}
+  by \ruleref{persistently-mono}.
+  In fact by \ruleref{persistently-E} it suffices to show
+  \begin{align*}
+    \left(\later I \ast P \wand \wpre{e}[\maskminus]{v.\later I \ast \Phi(v)}\right) \ast \knowInv{\iota}{I} \proves P \wand \wpre{e}[\mask]{\Phi}
+  \end{align*}
+  which is equivalent to showing
+  \begin{align*}
+    \left(\later I \ast P \wand \wpre{e}[\maskminus]{v.\later I \ast \Phi(v)}\right) \ast \knowInv{\iota}{I} \ast P \proves{} \wpre{e}[\mask]{\Phi}
+  \end{align*}
+  by the wand introduction rule.
+  Now
+  \begin{align*}
+    \left(\later I \ast P \wand \wpre{e}[\maskminus]{v.\later I \ast \Phi(v)}\right) \ast \knowInv{\iota}{I} \ast P
+    \proves{}
+    \left(\later I \wand \wpre{e}[\maskminus]{v.\later I \ast \Phi(v)}\right) \ast \knowInv{\iota}{I}
+  \end{align*}
+  by the wand elimination rule, which in turn yields
+  \begin{align*}
+    \wpre{e}[\mask]{\Phi}
+  \end{align*}
+  by \ruleref{wp-inv-open} derived in Example~\ref{example:wp-invariant-opening}.
+\end{example}
+
+The final rule is \ruleref{wp-frame-step}.
+This is analogous to the rule \ruleref{Ht-frame-atomic}, which allows us to remove laters from frames in the precondition, provided the term is atomic.
+Here, the term is not required to be atomic, but it is important that it is not a value.
+The fancy update modalities included in the rule are useful in certain cases, thus the rule is stated in full generality.
+\begin{exercise}
+  Derive the following rules from \ruleref{wp-frame-step}.
+  \begin{mathpar}
+    \infer
+    {\expr \notin \Val }
+    {\later\prop \ast \wpre{\expr}[\mask]{\pred} \proves{} \wpre{\expr}[\mask]{v.\prop \ast \pred(v)}}
+    \and
+    \infer
+    {e \notin \Val \and S \proves \hoare{P}{e}{v.Q}[\mask]}
+    {S \proves \hoare{P \ast \later R}{e}{v.Q \ast R}[\mask]}
+  \end{mathpar}
+  To derive the first rule, recall that $P \proves \pvs[\mask][\mask] P$ for any $P$ and any mask $\mask$.
+\end{exercise}
+
+
+Finally, note that there is no special rule needed for allocating invariants in connection with weakest preconditions.
+This is in contrast to Hoare triples, where allocating an invariant means transferring resources from the \emph{precondition} to the invariant.
+With weakest preconditions allocation of invariants is handled separately, and interaction of invariants and weakest preconditions is governed by the fancy update modality.
+
+\paragraph*{Fancy view shifts}
+
+Finally, we define the \emph{fancy view shift} $P \vs[\mask_1][\mask_2] Q$ from the fancy update modality as
+\begin{align*}
+  P \vs[\mask_1][\mask_2] Q \eqdef \persistently (P \wand \pvs[\mask_1][\mask_2] Q).
+\end{align*}
+If $\mask_1 = \mask_2$ we write $P \vs[\mask_1] Q$ for $P \vs[\mask_1][\mask_1] Q$.
+This concept is analogous to how view shifts are defined from the update modality in Section~\ref{sec:invar-ghost-state}.
+The concept makes it easier to state some of the (derived) rules involving Hoare triples.
+\begin{exercise}
+  Derive the following rules for the fancy view shift.
+  \begin{itemize}
+  \item
+    \begin{mathpar}
+      \inferH{Fvs-refl}
+      {\ }
+      {\cdot \proves P \vs[\mask_1] P}
+      \and
+      \inferH{Fvs-trans}
+      {S \proves P \vs[\mask_1][\mask_2] Q \and S \proves Q \vs[\mask_2][\mask_3] R}
+      {S \proves P \vs[\mask_1][\mask_3] R}
+    \end{mathpar}
+  \item
+    \begin{mathpar}
+      \inferH{Fvs-imp}
+      {S \proves \persistently (P \implies Q)}
+      {S \proves P \vs[\mask] Q}
+      \and
+      \inferH{Fvs-wand}
+      {S \proves \persistently (P \wand Q)}
+      {S \proves P \vs[\mask] Q}
+    \end{mathpar}
+  \item
+    \begin{mathpar}
+      \inferH{Fvs-frame}
+      {S \proves P \vs[\mask_1][\mask_2] Q}
+      {S \proves P \ast R \vs[\mask_1][\mask_2] Q \ast R}
+      \and
+      \inferH{Fvs-mask-frame}
+      {S \proves P \vs[\mask_1][\mask_2] Q \and \left(\mask_1 \cup \mask_2\right) \cap \mask_f = \emptyset}
+      {S \proves P \ast R \vs[\mask_1 \uplus \mask_f][\mask_2 \uplus \mask_f] Q \ast R}
+    \end{mathpar}
+  \item
+    \begin{mathpar}
+      \inferH{Fvs-timeless}
+      {\timelessjudg{P}}
+      {\cdot \proves \later P \vs[\mask] P}
+    \end{mathpar}
+  \item
+    \begin{mathpar}
+      \inferH{Fvs-alloc-I}
+      {\mask\ \infinite}
+      {\cdot \proves \later P \vs[\emptyset][\emptyset]\Exists \iota \in \mask.\knowInv{\iota}{P}} 
+      \and
+      \inferH{Fvs-open-I}
+      {\ }
+      {\knowInv{\iota}{P} \proves \TRUE \vs[\{\iota\}][\emptyset] \later P}
+    \end{mathpar}
+  \end{itemize}
+\end{exercise}
+
+
+\paragraph*{Hoare triples and fancy view shifts}
+
+With the new concepts we can present the final generalisation of the rules for Hoare triples.
+The most general rule of consequence we consider is the following
+\begin{mathpar}
+  \htcsqgen[-fvs]{-fvs}{\vs[\mask][\mask]}{\mask}
+\end{mathpar}
+From now on \ruleref{Ht-csq} will refer to this instance.
+\begin{exercise}
+  Derive the above rule of consequence.
+\end{exercise}
+
+
+The next rule is a generalisation of \ruleref{Ht-frame-atomic}.
+\begin{mathpar}
+  \inferH
+  {Ht-frame-step}
+  {{\color{red} e \notin\Val} \and
+    S \proves \hoare{P}{e}{v.Q}[\mask_2] \and
+    S \proves R_1 \vs[\mask_1][\mask_2] {\color{red}\later R_2} \and
+    S \proves R_2 \vs[\mask_2][\mask_1] R_3 \and
+    \mask_2 \subseteq \mask_1}
+  {S \proves \hoare{P \ast R_1}{e}{v.Q \ast R_3}[\mask_1]}
+\end{mathpar}
+It allows us to remove the later modality from the frame in cases where the term $e$ is not a value.
+The side-condition in the rule corresponds to the side-condition in the rule \ruleref{wp-frame-step}.
+\begin{exercise}
+  Derive the rule \ruleref{Ht-frame-step} from the rule \ruleref{wp-frame-step}.
+\end{exercise}
+
+
+\begin{example}[Improved Specfication for the Spin Lock]
+  \label{ex:improved-spec-spin-lock}
+  In this example we will show how to use the fancy update modality to give a better specification of the spin lock module from Section \ref{sec:examples-basic-concurrency}.
+
+  First, recall the specification we gave earlier for the spin lock module:
+    \begin{align*}
+    &\Exists \isLock : \Val \to \Prop \to \textlog{GhostName} \to \Prop.\nonumber\\
+    &\Exists \locked : \textlog{GhostName} \to \Prop.\nonumber\\
+    &\quad\quad\persistently\left(\All P, v, \gamma. \isLock(v,P,\gamma) \implies \persistently \isLock(v,P,\gamma)\right)\\
+    &\land\quad\All \gamma. \locked(\gamma) \ast \locked(\gamma) \implies \FALSE\\
+    &\land\quad\All P.\hoare{P}{\newLock ()}{v.\Exists \gamma.\isLock(v,P,\gamma)}\\
+    &\land\quad\All P, v, \gamma.\hoare{\isLock(v,P,\gamma)}{\acquire v}{\_.P \ast \locked(\gamma)}\\
+    &\land\quad\All P, v, \gamma.\hoare{\isLock(v,P,\gamma) \ast P \ast \locked(\gamma)}{\release v}{\_.\TRUE}
+  \end{align*}
+%
+  Notice that the resource invariant, the predicate $P$, is in the 
+  precondition for the $\newLock$ method. This means that that a client of the lock module must allocate the resources, which the lock is going to protect, \emph{before} calling the $\newLock$ method. For example, we cannot use the above specification to verify
+  safety of the following simple client, where the 
+  intention, of course, is that the lock should protect the reference $r$.
+  \begin{displaymath}
+   C_{1} \equiv
+    \Let l = \newLock () in
+    \Let r = \Ref(0) in
+    \acquire l; r \gets \deref{r} + 1; \release l
+  \end{displaymath}
+  The problem is that when $\newLock$ is called, reference $r$ is not in scope
+  and thus we cannot
+  instantiate $P$ with our intended resource invariant $\exists n.r\pointsto n$
+  when attempting to verify
+  the call to $\newLock$.
+  Thus with the specification given above, we are forced to rewrite the client code
+  as follows:
+  \begin{displaymath}
+  C_{2} =
+    \Let r = \Ref(0) in
+    \Let l = \newLock () in
+    \acquire l; r \gets \deref{r} + 1; \release l
+  \end{displaymath}
+  so that the resource (here the reference $r$) is allocated before $\newLock$ is called.
+  In general this is undesirable since the two programs are completely equivalent, and thus the logic should not force us to make trivial changes to the program in order to verify them.
+
+  Let us instead consider the following specification of the
+  $\newLock$ method:
+  %
+  \begin{equation}
+    \label{eq:newlock-spec}
+    \hoare{\TRUE}{\newLock ()}{v.\Exists \gamma. \All P. P \wand \pvs[\emptyset] \isLock(v,P,\gamma)}
+  \end{equation}
+  %
+  This specification expresses that we can always call $\newLock$ (since the precondition is $\TRUE$) and, moreover, that when $\newLock$ returns, we get the assertion
+  \begin{align}
+    \label{eq:newlock-spec-assertion}
+    \All P. P \wand \pvs[\emptyset] \isLock(v,P,\gamma).
+  \end{align}
+  The idea is that we can use this assertion when we know what the resource invariant $P$ should be instantiated with.
+  Then, when we have the resources $P$, we can use the assertion~\eqref{eq:newlock-spec-assertion} to obtain $\pvs[\emptyset]\isLock(v,P,\gamma)$, which is equivalent to $\isLock(v,P,\gamma)$ if it appears in the pre- or post-condition of a Hoare triple, \ie{} the following inference rules are valid.
+  \begin{mathpar}
+    \infer
+    {\hoare{P}{e}{v.Q}[\mask]}
+    {\hoare{\pvs[\emptyset]P}{e}{v.Q}[\mask]}
+    \and
+    \infer
+    {\hoare{P}{e}{v.\pvs[\emptyset]Q}[\mask]}
+    {\hoare{P}{e}{v.Q}[\mask]}
+  \end{mathpar}
+  \begin{exercise}
+    Derive the preceding two rules from the rule of consequence.
+  \end{exercise}
+  
+
+  \begin{remark}
+    Notice that the $P \wand \pvs[\emptyset] \isLock(v,P,\gamma)$ is almost a fancy view shift, except for the missing $\persistently$ modality.
+    The specification with a fancy view shift, \ie{}
+    \begin{align}
+      \label{eq:broken-newspec-spec}
+      \hoare{\TRUE}{\newLock ()}{v.\Exists \gamma. \All P. \persistently\left(P \wand \pvs[\emptyset] \isLock(v,P,\gamma)\right)}
+    \end{align}
+    would be \emph{unsound} in the sense that $\isLock(v,P,\gamma)$ would not protect the resources as explained in the following exercise.
+    It would allow us to conjure up many different independent locks protecting the same resource, meaning none of the locks would actually protect the resource.
+  \end{remark}
+  \begin{exercise}
+    Let $e$ be the following program.
+    \begin{align*}
+      &\Let v = \newLock () in\\
+      &\Let \ell = \Ref(0) in\\
+      &\acquire v;\\
+      &\release v;\\
+      &\acquire v;\\
+      &\Let n = \deref \ell in \release v; n
+    \end{align*}
+    Assuming~\eqref{eq:broken-newspec-spec} as the specification for $\newLock$ show the following specification.
+    \begin{displaymath}
+      \hoare{\TRUE}{e}{v.v = 37}. \qedhere
+    \end{displaymath}
+  \end{exercise}
+  
+  The specifications of the $\acquire$ and $\release$ methods stay the same.
+  \begin{exercise}
+    \leavevmode
+    \begin{enumerate}
+    \item Use the new lock module specification to verify the safety of the first client program, by
+      showing the following specification:
+      \begin{displaymath}
+        \hoare{\TRUE}{C_{1}}{\TRUE}
+      \end{displaymath}
+    \item Prove that the $\newLock$ method for the spin lock implementation in Section \ref{sec:examples-basic-concurrency} satisfies the specification in \eqref{eq:newlock-spec}.\qedhere
+    \end{enumerate}
+  \end{exercise}
+\end{example}
+
+\subsection{Timeless propositions}
+\label{sec:timeless}
+
+We have already mentioned \emph{timeless} propositions in the previous section.
+One of the rules for the fancy update modality is the rule \ruleref{Fup-timeless}
+\begin{mathpar}
+  \infer[Fup-timeless]
+  {\timelessjudg{P}}
+  {\later P \proves \pvs[\mask][\mask] P}
+\end{mathpar}
+which allows us to remove a later provided the proposition $P$ is timeless, and the conclusion is under the fancy update modality.
+Note that if we wanted $\later P \proves P$ for timeless propositions then the only timeless proposition would be $\TRUE$.
+This follows from the L\"ob induction principle.
+
+Now, what exactly is a timeless proposition?
+Recall the intuition behind the later modality.
+The proposition $\later P$ holds if $P$ holds in the future.
+Now, some propositions do not depend on time.
+For example, if $n$ and $m$ are natural numbers then $n = m$ is either always true, or always false.
+These are the propositions which we call timeless.
+The technical definition is as follows.
+\begin{definition}
+  \label{def:timeless-propositions}
+  A proposition $P$ is timeless if the following entailment holds
+  \begin{align*}
+    \later P \proves P \lor \later \FALSE
+  \end{align*}
+  We write
+  \begin{align*}
+    \timelessjudg{P}
+  \end{align*}
+  for the judgement stating that $P$ is timeless, or
+  \begin{align*}
+    \Gamma \timelessjudg{P}
+  \end{align*}
+  if the variable context $\Gamma$ is important.
+\end{definition}
+There is a perhaps curious $\later \FALSE$ appearing in the definition.
+In order to have the powerful L\"ob induction rule we must have that if $\later P \proves P$, then $P$ is necessarily equivalent to $\TRUE$.
+Semantically, this means there has to be a ``final time'', where there is no future.
+In order for $\later P$ to be well-defined it must be that $\later P$ holds in this final world.
+The proposition $\later\FALSE$ is a proposition which holds exactly at this final time, but does not hold otherwise.
+
+All ordinary propositions are timeless.
+By ordinary propositions we mean such things as equality on all base types apart from $\Prop$, basic relations such as $\leq$ or $\geq$ on natural numbers and so on.
+Moreover being timeless is preserved by almost all the constructs of logic, as stated in Figure~\ref{fig:rules-for-timeless}.
+A general guiding principle we can discern from these rules is that if a predicate does not involve a later or update modality, or an arbitrary predicate $P$, then it is timeless.
+\begin{figure}[htbp]
+  \begin{mathpar}
+    \infer
+    { }
+    {\timelessjudg{\TRUE}}
+    \and
+    \infer
+    { }
+    {\timelessjudg{\FALSE}}
+    \and
+    \infer
+    { \timelessjudg{P} \and \timelessjudg{Q}}
+    {\timelessjudg{P \lor Q}}
+    \and
+    \infer
+    { \timelessjudg{P} \and \timelessjudg{Q}}
+    {\timelessjudg{P \land Q}}
+    \and
+    \infer
+    { \timelessjudg{P} \and \timelessjudg{Q}}
+    {\timelessjudg{P \implies Q}}
+    \and
+    \infer
+    { \timelessjudg{P} \and \timelessjudg{Q}}
+    {\timelessjudg{P \ast Q}}
+    \and
+    \infer
+    { \timelessjudg{P} \and \timelessjudg{Q}}
+    {\timelessjudg{P \wand Q}}
+    \and
+    \infer
+    {\Gamma, x : \tau \timelessjudg{\Phi}}
+    {\Gamma \timelessjudg{\All x . \Phi}}
+    \and
+    \infer
+    {\Gamma, x : \tau \timelessjudg{\Phi}}
+    {\Gamma \timelessjudg{\Exists x . \Phi}}
+    \and
+    \infer
+    { \timelessjudg{P}}
+    {\timelessjudg{\persistently P}}
+  \end{mathpar}
+
+  Moreover ghost ownership is timeless.
+  \begin{mathpar}
+    \inferH{Ghost-RA-timeless}
+    {M \text{ is a resource algebra} \and a \in M}
+    {\timelessjudg{\ownGhost{\gamma}{a}}}
+  \end{mathpar}
+  \caption{Rules for timeless propositions.}
+  \label{fig:rules-for-timeless}
+\end{figure}
+
+\paragraph*{Properties of timeless propositions}
+In the examples in the preceding sections we have seen that opening invariants leads to some complications with the later modality.
+When opening the invariant $\knowInv{\iota}{P}$ we only get the proposition $\later P$ in the precondition of the Hoare triple, as opposed to $P$.
+We worked around this by using \ruleref{Ht-frame-atomic} together with stronger rules for Hoare triples from Section~\ref{sec:stronger-rules-for-hoare-triples}, but this is often quite inconvenient, especially since we often need to remove $\later$ from propositions which, intuitively, do not depend on time.
+
+The essence of why timelessness is a useful property is captured by the following rule, which relates timeless propositions to Hoare triples.
+\begin{mathpar}
+  \inferH{Ht-timeless-pre-post}
+  {\timelessjudg{P_1} \and
+    \timelessjudg{Q_1} \and
+    \hoare{P_1 \ast P_2}{e}{v.\later Q_1 \ast Q_2}[\mask]}
+  {\hoare{\later P_1 \ast P_2}{e}{v.Q_1 \ast Q_2}[\mask]}
+\end{mathpar}
+The rule states that we can remove one $\later$ from pre- and postconditions provided the propositions are timeless.
+Note that there is no restriction on the expression $e$ being atomic, as there is in \ruleref{Ht-frame-atomic}.
+However \ruleref{Ht-timeless-pre-post} is in general incomparable with \ruleref{Ht-frame-atomic} since the latter applies to arbitrary frames $P$, not just to timeless ones.
+\begin{exercise}
+  Derive the rule \ruleref{Ht-timeless-pre-post} from the generalized rule of consequence involving the fancy view shifts introduced in the previous section.
+\end{exercise}
+
+
+\begin{exercise}
+  Derive the following rules for timeless propositions.
+  \begin{mathpar}
+    \inferH{Ht-timeless-pre}
+    {\timelessjudg{P_1} \and
+      \hoare{P_1 \ast P_2}{e}{v.Q}[\mask]}
+    {\hoare{\later P_1 \ast P_2}{e}{v.Q}[\mask]}
+    \and
+    \inferH{Ht-timeless-post}
+    {\timelessjudg{Q_1} \and
+      \hoare{P}{e}{v.\later Q_1 \ast Q_2}[\mask]}
+    {\hoare{P}{e}{v.Q_1 \ast Q_2}[\mask]}
+  \end{mathpar}
+\end{exercise}
+
+
+In the examples we have done thus far the new rules would not help to reduce complexity noticeably.
+Later on, however, we will see that it is crucial for examples involving complex ghost state and invariants.
+Moreover, when using Iris in Coq it simplifies its use significantly, since tactics can automatically derive that propositions are timeless, and thus automatically remove the later modality in many places.
+The reason it was not needed until now is that we have strong rules for Hoare triples in the sense that, for basic stateful operations, it suffices to have $\later (\ell \pointsto v)$ in the precondition.
+Typically, when using invariants we will get such an assertion after opening an invariant.
+But when we use more complex ghost state, then we shall get propositions of the form $\later\ownGhost{\gamma}{a}$ in the precondition.
+Using such is difficult without timelessness.
+
+A conceptual reason for why timelessness is a useful and needed concept is the following.
+Iris supports nested and higher-order invariants.
+For this reason it is crucial, as we shall see later on, that when opening an invariant we do not get access to the resources \emph{now}, but only later, \ie{} opening an invariant gives us $\later P$ in the precondition.
+However this is only needed if $P$ refers to other invariants, or is a higher-order predicate.
+For first order-predicates, which do not refer to other invariants, it is safe to get the resources immediately.
+Using the notion of timelessness, we can recover some of the
+convenience of logics which support only first-order, predicative
+invariants, but retain the ability to form and use higher-order invariants.
+
+\begin{exercise}
+  \label{exercise:simple-rule-for-timeless-invariants}
+  Derive the following rules for invariant opening.
+  We assume $\mask$ is a set of invariant names and $\iota \in \mask$.
+  \begin{mathpar}
+    \inferH{wp-inv-timeless}
+    {e \text{ is an atomic expression } \and \timelessjudg{I} \and \iota \in \mask}
+    {\knowInv{\iota}{I} \ast \left(I \wand \wpre{e}[\mask\setminus\{\iota\}]{v.I \ast \Phi(v)}\right)
+      \proves{}
+      \wpre{e}[\mask]{\Phi}}
+    \and
+    \inferH{Ht-inv-timeless}
+    {e \text{ is an atomic expression} \and \timelessjudg{I} \and \iota \in \mask \and S \land\knowInv{\iota}{I} \proves \hoare{I \ast P}{e}{v.I \ast Q}[\mask\setminus\{\iota\}]}
+    {S \land \knowInv{\iota}{I} \proves \hoare{P}{e}{v.Q}[\mask]}
+  \end{mathpar}
+\end{exercise}
+
+
+The exercise establishes some properties of timeless assertions which are used implicitly when the Iris logic is used in the Coq proof assistant.
+\begin{exercise}
+  Assuming $P$ is timeless derive the following rules.
+  \begin{displaymath}
+    \infer
+    {Q \ast P \proves \pvs[\mask]R}
+    {Q \ast \later P \proves \pvs[\mask]R}
+    \quad
+    \infer
+    {Q \ast P \proves \wpre{e}[\mask]{\Phi}}
+    {Q \ast \later P \proves \wpre{e}[\mask]{\Phi}}
+    \qedhere
+  \end{displaymath}
+\end{exercise}
+
+\subsection{Invariant namespaces}
+\label{sec:invariant-namespaces}
+
+Invariant namespaces are the final conceptual ingredient needed to use the Iris logic in the Coq proof assistant.
+They simplify the use of the logic when we need to open multiple invariants.
+Let us see why.
+Suppose we are proving
+\begin{align*}
+  \knowInv{\iota_1}{P_1} \land \knowInv{\iota_2}{P_2} \proves \hoare{P}{e}{\Phi}[\mask].
+\end{align*}
+Then to use invariants $I_1$ and $I_2$ at the same time we need to know $\iota_1, \iota_2 \in \mask$ and that $\iota_1 \neq \iota_2$.
+The reason we need to know the last inequality is that after opening the first invariant we need to prove
+\begin{align*}
+  \knowInv{\iota_1}{P_1} \land \knowInv{\iota_2}{P_2} \proves \hoare{\later I_1 \ast P}{e}{v.\later I_1 \ast \Phi(v)}[\color{red}\mask\setminus\{\iota_1\}]
+\end{align*}
+and thus if $\iota_1$ and $\iota_2$ were the same, then we could not open them again.
+So how can we know that $\iota_1 \neq \iota_2$ ?
+The only way we can guarantee it is by using suitable sets of invariant names when allocating invariants.
+Recall (one variant of) the invariant allocation rule
+\begin{mathpar}
+  \infer[Inv-alloc]
+  {\mask_1\ \infinite}
+  {\later P \proves \pvs[\emptyset]\Exists \iota \in \mask_1.\knowInv{\iota}{P}}
+\end{mathpar}
+We can \emph{choose} an infinite set of invariant names from which $\iota$ is drawn.
+Hence we can use different sets in different parts of the proof in order to guarantee name inequalities.
+Invariant namespaces are used to denote these infinite sets of invariant names.
+
+There are different ways to encode them, but one way to think of them is to think of invariant names as strings.
+An invariant namespace is then also a string $\Nl$, but it denotes the set of all strings whose prefix is $\Nl$.
+We write this set as $\Nl^\uparrow$.
+With this encoding, if $\Nl$ is a namespace, then, say, $\Nl.\text{lock}$ and $\Nl.\text{counter}$ are two other namespaces, and, importantly, they denote disjoint sets of invariant names, \ie{} the sets $(\Nl.\text{lock})^\uparrow$ and $(\Nl.\text{counter})^\uparrow$ are disjoint.
+To make use of namespaces we define some abbreviations.
+We define\footnote{Note that we have already used namespaces implicitly when specifying, \eg{} the counter with contributions module in Section~\ref{sec:invar-ghost-state}. Specifically in the definition of the $\isCounter$ predicate~\eqref{eq:iscounter-cc-reppred} on page \pageref{eq:iscounter-cc-reppred}.}
+\begin{align*}
+  \knowInv{\Nl}{P} \eqdef \Exists \iota \in \Nl^\uparrow . \knowInv{\iota}{P}.
+\end{align*}
+With this notation the invariant allocation rule looks simpler, as
+\begin{align*}
+  \later P \proves \pvs[\emptyset] \knowInv{\Nl}{P}.
+\end{align*}
+for any chosen namespace $\Nl$.
+Other rules for working with invariants need to change slightly to use $\knowInv{\Nl}{P}$.
+The rule for opening invariants becomes
+\begin{mathpar}
+  \inferH{Inv-open-namespace}
+  {\Nl^\uparrow \subseteq \mask}
+  {\knowInv{\Nl}{P} \proves \pvs[\mask][\mask\setminus\Nl^\uparrow]\left(\later P \ast \left(\later P \wand \pvs[\mask\setminus\Nl^\uparrow][\mask]\TRUE\right)\right)}
+\end{mathpar}
+and the rule for opening invariants in connection with the weakest precondition assertion is thus
+\begin{mathpar}
+  \inferH{wp-inv-open-namespace}
+  {e \text{ is an atomic expression } \and \Nl^\uparrow \subseteq \mask}
+  {\knowInv{\Nl}{P} \ast \left(\later I \wand \wpre{e}[\mask\setminus\Nl^\uparrow]{v.\later I \ast \Phi(v)}\right)
+    \proves{}
+    \wpre{e}[\mask]{\Phi}}
+\end{mathpar}
+Unfortunately, with the rules we have presented thus far we cannot derive \ruleref{Inv-open-namespace} from \ruleref{Inv-open}.
+We will be able to do this once we \emph{define} the fancy update modality in terms of other connectives, but for now we remark that the rule is sound, and derivable from a general property of the fancy update modality stated in the following exercise.
+\begin{exercise}
+  Assume the following property of the fancy update modality, for any masks $\mask_1, \mask_2$, and $\mask_f$ such that $\mask_1$ is disjoint from $\mask_f$.
+  \begin{align*}
+    \pvs[\mask_1][\mask_2] \left(P \ast (Q \wand \pvs[\mask_2][\mask_1] R)\right) &\proves \pvs[\mask_1 \cup \mask_f][\mask_2] \left(P \ast (Q \wand \pvs[\mask_2][\mask_1 \cup \mask_f] R)\right).
+  \end{align*}
+  Use this property to derive \ruleref{Inv-open-namespace} from \ruleref{Inv-open}.
+\end{exercise}
+
+
+To summarize, namespaces are a convenience feature for dealing with multiple invariants.
+They explicitly record the infinite set of invariant names we have chosen when allocating the invariant.
+The rules for using invariants can then be presented in such a way that they only mention the namespace, and not the concrete name the invariant has.
+Moreover namespaces have a tree-like structure, with disjoint children.
+These are called subnamespaces.
+For example, if $\Nl$ is a namespace then $\Nl.\text{lock}$ and
+$\Nl.\text{counter}$ are two disjoint subnamespaces.
+Hence if we allocate invariants $\knowInv{\Nl.\text{lock}}{P_1}$ and $\knowInv{\Nl.\text{counter}}{P_2}$, then it is immediately clear that we can open both of them at the same time.
+We do not need to keep track of additional name inequalities elsewhere in our context.
+
+Invariant namespaces are well supported in the Iris proof mode in Coq.
+Hence, most of the time, when working with invariants, the side-conditions on masks are discharged automatically in the background.
+This simplifies proofs and enables the user to focus on the interesting parts of the verification.
+
+%%% Local Variables:
+%%% mode: latex
+%%% TeX-master: "../main.tex"
+%%% End:

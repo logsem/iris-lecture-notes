@@ -1,0 +1,82 @@
+\section*{Preface}
+
+These lecture notes are intended to serve as an introduction to Iris, 
+a higher-order concurrent separation logic framework implemented and verified in the Coq proof assistant.
+
+Iris has been developed over several years in joint research involving the Logic and Semantics group at Aarhus University, led by Lars Birkedal, and the Foundations of Programming Group at Max Planck Institute for Software Systems, led by Derek Dreyer. 
+Lately, the development has involved several other international research groups, in particular the group of Robbert Krebbers 
+at TU Delft.
+
+The main research papers describing the Iris program logic framework are three conference papers~\cite{iris,iris2,iris3}
+and a longer journal paper with more details on the semantics and the latest developments of the 
+logic~\cite{iris-ground-up}. These papers, and several other Iris related research papers, 
+can all be found on the Iris Project web site:
+
+\begin{center}
+  \href{http://iris-project.org}{iris-project.org}
+\end{center}
+
+At this web site one can also get access to the Coq implementation of Iris.
+
+
+
+\paragraph{Design Choices}
+
+It is not obvious how one should introduce a sophisticated logical framework such as Iris, especially
+since Iris is a \emph{framework} in more than one sense: Iris can be instantiated
+to reason about programs written in different programming languages and, moreover, 
+Iris has a \emph{base logic}, which can be used to define different kinds of program logics and 
+relational models. 
+We now describe some of the design choices we have made for these lecture notes.
+
+These lecture notes are aimed at students with no prior knowledge of program logics. 
+Hence we start from scratch and we focus on a particular instantiation of Iris to reason about
+a core concurrent higher-order imperative programming language, \proglang.
+(As Martin Hyland once put it~\cite{Hyland:82}: ``One good example is worth a host of generalities''.)
+
+
+We start with high-level concepts, such as Hoare triples and proof rules for those, and then, gradually, as we introduce more concepts, we show, \eg{} how proof rules that were postulated at first can be derived from simpler concepts.
+Moreover, new logical concepts are introduced with concrete, but often artificial, verification examples.
+The lecture notes also include larger case studies which show the logic can be used for verification of realistic programs.
+A word of caution to the reader.
+The beginning of the lecture notes, until about Section~\ref{sec:basic-separation-logic}, is rather formal and abstract.
+Do not be disheartened by it.
+This part is needed in order to fix notation, and explain the basic structure of reasoning used in concrete examples of program verification later on.
+
+Since the Iris logic involves several new logical modalities and connectives, we present example
+proofs of programs in a fairly detailed style (instead of the often-used proof outlines). We hope
+this will help readers learn how the novel aspects of the logic work.
+
+We have included numerous exercises of varying degree of difficulty.
+Some exercises introduce reasoning principles used later in the notes.
+Thus the exercises are an integral part of the lecture notes, and should not be skipped.
+
+When we introduce the logic, we only use intuitive semantics to explain why 
+proof rules are sound.
+For the time being we refer the reader to a research paper~\cite{iris-ground-up} for an extensive description of the model of Iris.
+There are several reasons for this choice:
+the formal semantics is non-trivial (\eg{} it involves solutions to recursive domain equations); 
+the semantics is really defined for the base logic, which is only introduced later in the notes;
+and, finally, our experience from teaching a course based on the these lecture notes is that 
+students can learn to use the logic without being exposed to the formal semantics of the logic.
+
+Since Iris comes with a Coq implementation, it would perhaps be tempting to teach Iris
+using the Coq implementation from the beginning. However, we have decided against
+doing so. The reason is that our students do not have enough experience with Coq 
+to make such an approach viable and, moreover, we believe that, for most readers, there 
+would be too many things to learn at the same time.  We do include a section on 
+the Coq implementation and also describe all the parts of Iris needed in order
+to work with the Coq implementation.  The examples in the notes have been formalized 
+in the Iris Coq implementation and are available at the \href{http://iris-project.org}{Iris Project} web site.
+
+We have not attempted to include references to original research papers or to include
+historical remarks. Please see the Iris research papers for references to earlier work.
+
+\paragraph{Acknowledgements}
+We thank the students of the \emph{Program Analysis and Verification} course at Aarhus University for providing feedback on an early version of these notes.
+We thank Ambal Guillaume, Jonas Kastberg Hinrichsen, Marianna Rapoport, and Lily Tsai for valuable feedback.
+
+%%% Local Variables:
+%%% mode: latex
+%%% TeX-master: "../main.tex"
+%%% End:

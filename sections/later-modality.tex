@@ -1,0 +1,322 @@
+\section{The Later Modality}
+\label{sec:introducing-later}
+
+\newcommand{\lobrule}[1][]
+{\rulegenhref[#1]{L{\"o}b}{Loeb}
+  {Q \land \later\prop \proves \prop}
+  {Q \proves \prop}}
+\newcommand{\latermonorule}[1][]
+{\rulegenhref[#1]{later-mono}{Later-Mono}
+ {Q \proves \prop}
+ {\later Q \proves \later\prop}}
+\newcommand{\laterweakrule}[1][]
+{\rulegenhref[#1]{later-weak}{Later-weak}
+{Q \proves \prop}
+{Q \proves \later{\prop}}}
+\newcommand{\laterexistsrule}[1][]
+{\rulegenhref[#1]{$\later$-$\exists$}{later-exists}
+  {\text{$\type$ is inhabited} \and Q \proves \later{\Exists x:\type.\prop}}
+  {Q \proves \Exists x:\type. \later\prop}}
+\newcommand{\existslaterrule}[1][]
+{\rulegenhref[#1]{$\exists$-$\later$}{exists-later}
+  {Q \proves \Exists x. \later P}
+  {Q \proves \later{\Exists x.\prop}}}
+\newcommand{\laterconjrule}[1][]
+{\rulegenhrefb[#1]{later-$\wedge$}{Later-conj}
+  {R \proves \later (P \land Q)}
+  {R \proves \later P \land \later Q}}
+\newcommand{\laterdisjrule}[1][]
+{\rulegenhrefb[#1]{later-$\vee$}{Later-disj}
+  {R \proves \later (P \lor Q)}
+  {R \proves \later P \lor \later Q}}
+\newcommand{\laterforallrule}[1][]
+{\rulegenhrefb[#1]{later-$\forall$}{Later-all}
+  {Q \proves \later{\All x.P}}
+  {Q \proves \All x. \later P}}
+\newcommand{\laterseprule}[1][]
+{\rulegenhrefb[#1]{later-$\ast$}{Later-sep}
+  {R \proves \later P \ast \later Q}
+  {R \proves \later (P \ast Q)}}
+
+\newcommand{\htbetalater}[1][]{\htbetagen[-later#1]{\later}{ }}
+\newcommand{\htloadlaterrule}[1][]{\htloadgen[#1]{\later}}
+\newcommand{\htstorelaterrule}[1][]{\htstoregen[#1]{\later}}
+\newcommand{\htreclaterrule}[1][]{\htrecgen[#1]{\later}}
+\newcommand{\htmatchlaterrule}[1][]{\htmatchgen[#1]{\later}}
+\newcommand{\htletlaterrule}[1][]{\htletgen[#1]{\later}}
+\newcommand{\htletdetlaterrule}[1][]{\htletdetgen[#1]{\later}}
+\newcommand{\htseqlaterrule}[1][]{\htseqgen[#1]{\later}}
+\newcommand{\htiflaterrule}[1][]{\htifgen[#1]{\later}}
+
+The \emph{later modality} is an essential feature of Iris.  It will be
+used extensively in connection with invariants which we introduce in
+Section~\ref{sec:invar-ghost-state}.  However it can also be used for
+other things, chiefly for specifying and reasoning about higher-order
+programs using higher-order store.  We show a more involved example of
+this in
+Section~\ref{sec:case-study:sequential-invariants}.  In
+this section we introduce the later modality and its associated
+powerful L\"ob induction principle by a small, and rather artificial,
+example which has the benefit that it is relatively simple and only
+involves one new concept.
+
+Recall that in untyped lambda calculus one can define a fixed-point
+combinator which can be used to express recursive functions.  In our
+\proglang\ language we have a primitive fixed point combinator $\Rec{f} x = e$
+but, for the purposes of introducing the later modality, we
+will show how to define a fixed-point combinator and prove a suitable 
+specification for it. 
+
+To this end, we assume the following specification for $\lambda$ terms.
+\begin{mathpar}
+  \infer
+  {S \proves \hoare{P}{e\left[v/x\right]}{u.Q}}
+  {S \proves \hoare{P}{(\lambda x . e) v}{u.Q}}
+\end{mathpar}
+%
+Given a value $F$, the call-by-value Turing fixed-point combinator
+$\Theta_F$ is the following term
+\begin{align*}
+  \Omega_F &= \lambda r . F (\lambda x . r r x)\\
+  \Theta_F &= \Omega_F \Omega_F
+\end{align*}
+One can easily derive (exercise!), for any values $F$ and $v$,
+\begin{align*}
+  \Theta_F v \stepsto F (\lambda x . \Theta_F x) v
+\end{align*}
+and thus, if $F = \lambda f x . e$ then one should think of 
+$\Theta_F$ as $\Rec{f} x = e$.
+
+Now we wish to derive a useful proof rule for $\Theta_F$, analogous to the simplified version of the \ruleref{Ht-Rec} rule displayed in Figure~\ref{fig:hoare-triple-rules-sequential} on page \pageref{fig:hoare-triple-rules-sequential}.
+\footnote{The rule is simplified by the removal of the ``logical'' variables $y$ in the rule \ruleref{Ht-Rec}. These are not essential for understanding this example and would only complicate the reasoning.}
+\begin{mathpar}
+  \inferH{Ht-Turing-fp}
+  {\Gamma \mid S \land \All v. \hoare{P}{\Theta_F v}{u.Q} \proves \All v. \hoare{P}{F (\lambda x . \Theta_F x) v}{u.Q}}
+  {\Gamma \mid S \proves \All v. \hoare{P}{\Theta_F v}{u.Q}}
+\end{mathpar}
+But at present there is nothing in the logic which would allow us to do so.
+In contrast to the specifications of the linked list methods above, there is no tangible structure, such as the mathematical sequence representing a list, which could be used as a crutch to prove the specification by induction, for example.
+
+We are thus led to extend the logic with a new construct, the $\later$ (pronounced ``later'') modality.
+The main punch of the later modality is the L\"ob rule:
+\begin{mathpar}
+  \lobrule[-inline]
+\end{mathpar}
+which is similar to a coinduction principle.
+It states that (in any context $Q$), if from $\later P$ we can derive
+$P$, then we can also derive $P$ without any assumptions.
+When using this rule we will often say we ``proceed by L\"{o}b induction'', or that we are going to use ``L\"{o}b induction''.
+
+Note that the $\later$ modality is necessary for the rule to be sound:
+if we admit the rule
+\begin{align}
+  \label{eq:inconsistent-rule}
+  \infer
+  {Q \land \prop \proves \prop}
+  {Q \proves \prop}
+\end{align}
+to the logic, then the logic would become inconsistent,
+in the sense that we could then prove $\TRUE \proves \FALSE$.
+\begin{exercise}
+  Assuming \eqref{eq:inconsistent-rule} derive $\TRUE \proves \FALSE$.
+\end{exercise}
+
+
+Intuitively, the $\later$ modality in the premise $\later P$ in the
+\ruleref{Loeb} rule
+ensures that when proving $P$, we need to ``do some work'' before we 
+can use $P$ as an assumption.
+
+The rest of the rules for the $\later$ modality, listed in
+Figure~\ref{fig:laws-for-later}, essentially ensure that that we can
+get the later modality at the correct place in order to use the L\"ob
+rule.
+
+\begin{figure}[htbp]
+  \centering
+  \begin{mathpar}
+    \latermonorule
+    \and
+    \laterweakrule
+    \and
+    \lobrule
+    \and
+    \laterexistsrule
+    \and
+    \existslaterrule
+    \and
+    \laterconjrule
+    \and
+    \laterdisjrule
+    \and
+    \laterforallrule
+    \and
+    \laterseprule
+  \end{mathpar}
+  \caption{Laws for the later modality.
+    A type $\type$ is \emph{inhabited} if $ \proves \wtt{\term}{\type}$ is derivable for some $\term$.
+  }
+  \label{fig:laws-for-later}
+\end{figure}
+
+\paragraph{Strengthening the Hoare rules}
+In order for the later modality to be useful for proving specifications (Hoare triples) we will need to connect it in some way to the steps a program can take.
+Let us see how this comes up by trying to show \ruleref{Ht-Turing-fp}.
+
+We proceed by L\"ob induction so we assume $\later \All v.\hoare{P}{\Theta_F v}{u.Q}$ and we are to show
+\begin{align*}
+  \All v.\hoare{P}{\Theta_F v}{u.Q}.
+\end{align*}
+Let $v$ be a value.
+By using the \ruleref{Ht-bind} and \ruleref{Ht-beta} it suffices to show $\hoare{P}{F (\lambda x .
+  \Theta_F x) v}{u.Q}$ and thus by the assumption of the rule we are proving it suffices to show
+\begin{align*}
+  \All v.\hoare{P}{\Theta_F v}{u.Q}.
+\end{align*}
+However we only have the L\"ob induction hypothesis
+\begin{align*}
+  \later\All v.\hoare{P}{\Theta_F v}{u.Q}
+\end{align*}
+from which we cannot get what is needed.
+The issue is that we have not connected the later modality to 
+the programming language constructs in any way.
+One way to do that is to have a stronger \ruleref{Ht-beta} rule,
+which only assumes $\later P$ in the precondition of the triple in
+the conclusion of the rule:
+\begin{mathpar}
+  \htbetalater
+\end{mathpar}
+The intuitive explanation for why this rule is sensible is that the
+term $(\lambda x.e)v$ takes one more step to evaluate than
+$e\left[v/x\right]$; hence any resources accessed by the body $e$
+will only be needed one step \emph{later}.
+
+\begin{exercise}
+  Convince yourself that the old beta rule is derivable from the new one using the rules presented thus far.
+\end{exercise}
+
+
+The final piece we need is that if $P$ is a persistent proposition
+(\eg{} a Hoare triple or equality) then $\later P$ is also a
+persistent proposition, which implies that we can move it in and out of
+the preconditions (\emph{c.f.} \ruleref{Ht-Ht}).
+
+Let us prove the rule \ruleref{Ht-Turing-fp}.
+We proceed by L\"ob induction so we assume
+\begin{align*}
+  \later \All v.\hoare{P}{\Theta_F v}{u.Q}
+\end{align*}
+and we are to show
+\begin{align*}
+  \All v.\hoare{P}{\Theta_F v}{u.Q}.
+\end{align*}
+Let $v$ be a value.
+By using \ruleref{Later-weak} and the rule of consequence \ruleref{Ht-csq} it suffices to show $\hoare{\later P}{\Theta_F v}{u.Q}$.
+Since Hoare triples are persistent propositions this is equivalent to showing
+\begin{align*}
+  \hoare{\later (\All v.\hoare{P}{\Theta_F v}{u.Q} \land P)}{\Theta_F v}{u.Q}
+\end{align*}
+By the bind rule and the stronger rule \ruleref{Ht-beta} introduced above it thus suffices to show
+\begin{align*}
+  \hoare{\All v.\hoare{P}{\Theta_F v}{u.Q} \land P}{F (\lambda x.\Theta_F x) v}{u.Q}
+\end{align*}
+which again is equivalent (rule \ruleref{Ht-Ht}) to showing
+$\hoare{P}{F (\lambda x.\Theta_F x) v}{u.Q}$ assuming
+$\All v.\hoare{P}{\Theta_F v}{u.Q}$.  But this is exactly the premise
+of the rule \ruleref{Ht-Turing-fp},  and thus the proof is concluded.
+
+\subsection{Stronger rules for Hoare triples}
+\label{sec:stronger-rules-for-hoare-triples}
+
+With the introduction of the later modality, we can strengthen the
+rules for Hoare triples, so that they allow the removal of the later
+modality in preconditions in those cases where the term we are specifying is
+not a value.  From now on, we will use these stronger rules.  We only list
+the rules which differ.
+
+\begin{mathparpagebreakable}
+  \htloadlaterrule
+  \and
+  \htstorelaterrule
+  \and
+  \htreclaterrule
+  \and
+  \htmatchlaterrule
+\end{mathparpagebreakable}
+
+\begin{exercise}
+  Derive the rules in Section~\ref{sec:basic-separation-logic} apart from \ruleref{Ht-Rec}, for which see Exercise~\ref{exercise:derived-rule-recursive-functions} below, from the rules just listed.
+\end{exercise}
+
+
+\begin{exercise}
+  \label{exercise:derived-rule-let-expression-sequencing-stronger}
+  This is a variant of Exercise~\ref{exercise:derived-rule-let-expression-sequencing} above deriving stronger rules for Hoare triples which allow us to remove more later modalities.
+
+  Show the following rules
+  \begin{mathpar}
+    \htletlaterrule
+    \and
+    \htletdetlaterrule
+    \and
+    \htseqlaterrule
+    \and
+    \htiflaterrule
+  \end{mathpar}
+\end{exercise}
+
+In the rest of the document we use these stronger variants of the
+rules.
+(For instance, when in future sections we refer to the sequencing rule, we refer to 
+the one above involving a $\later$.)
+
+
+\subsection{Recursively defined predicates}
+\label{sec:recursively-defined-pred}
+
+With the addition of the later modality we can extend the logic with \emph{recursively defined predicates}.
+The terms of the logic are thus extended with
+\begin{align*}
+    \term \bnfdef \cdots \mid \MU \var:\type. \term
+\end{align*}
+with the side-condition that the recursive occurrences must be \emph{guarded}: in $\MU \var.\term$, the variable $\var$ can only appear under the later $\later$ modality.
+
+The typing rule for the new term is as expected
+\begin{align*}
+  \infer{
+  \vctx, \var:\type \proves \wtt{\term}{\type} \and
+  \text{$\var$ is guarded in $\term$}
+  }{
+  \vctx \proves \wtt{\MU \var:\type. \term}{\type}
+  }
+\end{align*}
+where $x$ is \emph{guarded in} $t$ if all of its occurrences in $t$
+are under the $\later$ modality.  For example, $P$ is guarded in the following
+terms (where $Q$ is a closed proposition)
+\begin{mathpar}
+  \later(P \land Q) \and  (\later P) \implies Q \and Q    
+\end{mathpar}
+but is \emph{not} guarded in any of the following terms
+\begin{mathpar}
+  P \land \later Q \and  P \implies Q \and P \lor Q.
+\end{mathpar}
+%
+We have a new rule for using guarded recursively defined
+predicates, which expresses the fixed-point property:
+\begin{mathpar}
+  \inferH{Mu-fixed}
+  { }
+  {Q \proves \MU \var:\type.\term =_\type t\left[\MU\var:\type.\term/\var\right]}
+\end{mathpar}
+This rule is typically used in conjunction with L\"ob induction.
+
+We shall see examples of the use of guarded recursively defined
+predicates later on.
+
+
+
+
+%%% Local Variables:
+%%% mode: latex
+%%% TeX-master: "../main.tex"
+%%% End:

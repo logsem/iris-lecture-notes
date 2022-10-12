@@ -1,0 +1,275 @@
+\section{Case Study: Ticket Lock}
+\label{sec:case-study:ticket-lock}
+
+\renewcommand{\isLock}{\operatorname{isLock}}
+\renewcommand{\locked}{\operatorname{locked}}
+\newcommand{\issued}{\operatorname{issued}}
+\renewcommand{\newLock}{\operatorname{newLock}}
+\renewcommand{\acquire}{\operatorname{acquire}}
+\newcommand{\wait}{\operatorname{wait}}
+\renewcommand{\release}{\operatorname{release}}
+\newcommand{\lockInv}{\operatorname{lockInv}}
+
+We have seen the specification of a basic spin lock in Section \ref{sec:examples-basic-concurrency}.
+However, the basic spin lock easily leads to thread starvation.
+A thread can be indefinitely denied access to the critical region protected by the lock even under very strong fairness assumptions on the scheduler.
+This might be acceptable in certain applications, but is undesirable in others.
+A \emph{ticket lock} is a more refined spin lock which keeps track of the order in which access to critical region was demanded.
+It does this by keeping two counters which represent queue positions.
+The first counter is the queue position that is next in line for access to the critical region, and the second is the position of the client in the queue.
+When acquiring the lock, the client first obtains a position in the queue (a \emph{ticket}) by incrementing (atomically, using $\CAS$) the second counter.
+Then it waits until it is its turn for entering the critical region.
+When releasing the lock, the first counter is incremented to allow other waiting clients to acquire the lock.
+
+This type of lock thus behaves like a \emph{first-in first-out} queue.
+This means that the threads trying to acquire the lock will be allowed to take it in the order they asked for it, or more precisely, in the order in which they obtained their tickets.
+However, the specification of the ticket lock we give in this section does not express this property.
+Indeed, we give the ticket lock the same specification as we gave to the spin lock in Example~\ref{ex:basic-spin-lock} on page~\ref{ex:basic-spin-lock}.
+Fairness is a \emph{liveness} property, and in fact a global property of the system, \ie{} not a property of an individual method, whereas Iris -- as presented here -- only allows reasoning about safety properties.
+
+\subsection{Setup}
+The ticket lock has three methods, $\newLock$ for creating a new ticket lock, and $\acquire$ and $\release$
+for acquiring and releasing the lock respectively.
+Moreover, we have an auxiliary $\wait$ method used by the $\acquire$ method.
+In order to make the verification more readable we write it as a separate public method.
+\begin{align*}
+  \langkw{let} \newLock () ={} &(\Ref(0), \Ref(0))\\
+  \langkw{let} \acquire l ={} &\Let n = \deref (\Proj{2} l) in\\
+                           &\If{\CAS( (\Proj{2} l), n , n + 1) }\\
+                           &then{\wait o \; l}\\
+                           &\Else{\acquire l}\\
+  \langkw{let} \wait n \; l ={} &\Let o = \deref (\Proj{1} l) in \\
+                           &\If{o = n}then{()}\Else{\wait n\; l}\\
+  \langkw{let} \release l ={} &(\Proj{1} l) \gets \deref (\Proj{1} l) + 1
+\end{align*}
+As we explained above, the lock uses two mutable counters, the first for keeping track of who is currently permitted to take the lock and thereby gain access to the resources protected by it, and the second for tracking which ticket to give out to the next thread.
+We will refer to them as \emph{\textbf{o}wner} and \emph{\textbf{n}ext} respectively.
+
+In the $\acquire$ method we first try to obtain a ticket.
+This is the intention of the first two lines.
+However since another thread might try to obtain a ticket at the same time we need to use $\CAS$ to atomically increment, and thus might need to retry this operation.
+Once we succeed, we obtain a ticket in the queue, and proceed to wait our turn to get access to the resources protected by the lock by using the $\wait$ method.
+\begin{remark}
+  Note that it is indeed possible that we never obtain a ticket, since the scheduler might decide to schedule another thread every time just after we have read the value of the second counter.
+  Thus we might always fail to acquire the lock.
+  However, getting a ticket is a cheap operation, and we have to be exceedingly unlucky to always be preempted just after reading the counter.
+  In contrast, threads can spend a significant amount of time in the critical region, hence the spin lock is more likely to fail and always be prevented from acquiring the lock.
+
+  In a real implementation we would use a primitive \emph{fetch-and-add} operation supported by many modern processors instead of the $\CAS$ loop.
+  This would provide an even stronger guarantee.
+  We have chosen to keep things simple in these notes and not complicate the language too much, and hence we stick with only the $\CAS$ primitive.
+\end{remark}
+
+The $\wait$ method \emph{waits} until it is the given client's turn to enter the critical region.
+Note that the method does not need to use any synchronisation primitives since only the thread that acquired the lock should release it, and thus the value of $n$ will not change once it becomes $n$; this is the invariant maintained by all the methods of the ticket lock module.
+
+Analogously, we do not need to use synchronisation primitives when releasing the lock (the $\release$ method).
+Only the method which is in the critical region will increment the first counter, and thus there will be no interference between reading its value, and writing it.
+
+As mentioned in the introduction, we can give this lock the same specification as the spin lock.
+The only addition is the specification of the $\wait$ method, together with the auxiliary assertion $\issued$ used by it.
+\begin{align*}
+  &\Exists \isLock : \textlog{GhostName} \to \Val \to \Prop \to \Prop.\nonumber\\
+  &\Exists \locked : \textlog{GhostName} \to \Prop.\nonumber\\
+  &\color{red} \Exists \issued : \textlog{GhostName} \to \Val \to \Prop.\nonumber\\
+  &\quad\quad\All P, v, \gamma. \isLock(v, P, \gamma) \implies \persistently \isLock(v, P, \gamma)\\
+  &\land\quad\All \gamma. \locked(\gamma) \ast \locked(\gamma) \implies \FALSE\\
+  &\land\quad\All \gamma. \issued(\gamma,n) \ast \issued(\gamma,n) \implies \FALSE\\
+  &\land\quad\All P.\hoare{P}{\newLock ()}{v.\Exists \gamma.\isLock(v, P, \gamma)}\\
+  &\color{red}\land\quad\All P, v, \gamma, n.\hoare{\isLock(v, P, \gamma) \ast \issued(\gamma, n)}{\wait (n, v)}{\_.P \ast \locked(\gamma)}\\
+  &\land\quad\All P, v, \gamma.\hoare{\isLock(v, P, \gamma)}{\acquire (v)}{\_.P \ast \locked(\gamma)}\\
+  &\land\quad\All P, v, \gamma.\hoare{\isLock(v, P, \gamma) \ast P \ast \locked(\gamma)}{\release (v)}{\_.\TRUE}
+\end{align*}
+The abstract predicate $\isLock(v, P, \gamma)$ expresses that the value $v$ (a pair of two locations) is a ticket lock protecting resources described by the predicate $P$ using the ghost resources associated with $\gamma$.
+As before, the $\isLock$ predicate is persistent, so different threads can use the lock simultaneously.
+
+We will start by defining the resource algebra, invariant, and predicates we need, and then explain our choices.
+The resource algebra we use is: $\authm(\exm (\NN)_{?} \times \left(\PP_{fin} (\NN)\right)$.
+All of the constructs of this RA have been previously introduced in Section~\ref{sec:ghost-state}.
+The lock invariant we will use in our proof is:
+\begin{align*}
+  \lockInv(\gamma, \ell_{o}, \ell_{n}, P) & = \Exists o, n. \: \ell_{o} \pointsto o \ast \ell_{n} \pointsto n \ast \ownGhost{\gamma}{\authfull (o, \{ i \mid 0 \leq i < n \})}\\
+  &\ast \left(\ownGhost{\gamma}{\authfrag (o, \emptyset)} \ast P \lor \ownGhost{\gamma}{\authfrag (\epsilon, \{o \})}\right).
+\end{align*}
+  
+With this we define the $\isLock$, $\locked$ and $\issued$ predicates as follows (where $\mask$ is some chosen infinite set of invariant names)
+\begin{align*}
+  \isLock(v, P, \gamma) & = \Exists \ell_{o}, \ell_{n}, \iota \in \mask. v = (\ell_{o}, \ell_{n}) \ast \knowInv{\iota}{\lockInv(\gamma, \ell_{o}, \ell_{n}, P)}\\
+  \locked(\gamma) & = \Exists o. \ownGhost{\gamma}{\authfrag (o, \emptyset)}\\  
+  \issued(\gamma, n) & = \ownGhost{\gamma}{\authfrag (\epsilon, \{n\})}
+\end{align*}
+
+Our lock invariant keeps track of the values of the owner and next counters.
+Since these change when the lock is being used, they need to be existentially quantified.
+The exclusive construction in our RA expresses the fact that only one thread is allowed to take or hold the lock at any given time.
+Moreover, the invariant holds an authoritative piece of ghost state, which holds both the value of the owner counter and a subset of natural numbers.
+This set keeps track of which tickets have been given out.
+The combination of the authoritative construction and the exclusive one is needed in order to conclude equivalent values when combining different parts of our ghost state.
+The disjunction in our invariant intuitively describes whether the lock is currently acquired or not.
+If the left disjunct holds then the thread with ticket number $o$ is allowed to take the lock, but has not yet done so.
+This is also the reason why the lock in this case holds the predicate $P$.
+If the right disjunct holds then the lock is held by the thread with ticket number $o$.
+
+The $\locked \: (\gamma)$ predicate expresses that the lock associated with ghost name $\gamma$ is currently
+locked with some ticket number.
+The predicate $\issued \: (\gamma, n)$ states that ticket number $n$ has been given out.
+
+These two predicates correspond to the two sides of the disjunction in the invariant. The intuition behind
+this is that when we know either $\locked$ or $\issued$, then we can conclude that the other side of the
+disjunction must currently be in the invariant, since the composition would otherwise be invalid.
+    
+\subsection{Proofs}
+There are five proof obligations in the specification.
+The first three are derived directly from the properties of the chosen resource algebra, and the definitions of the relevant predicates.
+The $\isLock$ predicate is persistent since it is a separating conjunction of two persistent propositions.
+The $\locked$ predicate is not duplicable due to the use of the exclusive part of our RA.
+Finally, the $\issued$ predicate is not duplicable, because the composition of two sets in our RA is only valid if these sets are disjoint.
+
+\subsubsection{newLock}
+The fourth obligation is the specification for $\newLock$ and will therefore include the allocation of ghost state and the lock invariant. 
+We need to show the following triple:
+\begin{align*}
+  \hoare{ P }{ \newLock () }{v. \Exists \gamma. \isLock (v, P, \gamma)}.
+\end{align*}
+By \ruleref{Ht-beta}, is suffices to show:
+\begin{align*}
+      \hoare{ P }{ (\Ref(0), \Ref(0)) }{v. \Exists \gamma. \isLock (v, P, \gamma)}.
+\end{align*}
+We first apply the \ruleref{Ht-bind-det} rule twice with $\Ref(0)$ in both cases.
+We then allocate the ghost state $\ownGhost{\gamma}{(\authfull (0, \emptyset)) \cdot \authfrag (0, \emptyset)}$.
+Keeping in mind that $\ownGhost{\gamma}{(\authfull (0, \emptyset)) \cdot \authfrag (0, \emptyset)} \proves \ownGhost{\gamma}{\authfull (0, \emptyset)} \ast \ownGhost{\gamma}{\authfrag (0, \emptyset)}$, we get the two pieces of ghost state we need.
+Together with $P$ from the precondition and the two locations we got from the two $\Ref(0)$, we now have all the resources needed for the $\isLock$ predicate and are done.
+
+\subsubsection{wait}
+The next proof obligation is the specification for $\wait$. We want to show:
+\begin{align*}
+  \hoare{\isLock(v, P, \gamma) \ast \issued(\gamma, n)}{\wait (n, v)}{\_.P \ast \locked(\gamma)}
+\end{align*}
+This is a recursive definition, so we make use of the derived rule from Exercise~\ref{exercise:derived-rule-recursive-functions} together with the \ruleref{Ht-beta} and \ruleref{Ht-csq} rules. This means we assume:
+\begin{align*}
+  \hoare{\later \isLock(v, P, \gamma) \ast \later \issued(\gamma, n)}{\wait (n, v)}{\_.P \ast \locked(\gamma)}
+\end{align*}
+and need to show
+\begin{align*}
+  \hoare{\isLock(v, P, \gamma) \ast \issued(\gamma, n)}{\Let o = \deref (\Proj{1} v) in \dots}{\_.P \ast \locked(\gamma)}
+\end{align*}
+By unfolding the $\isLock$ predicate, we get the concrete pair of locations $\ell_{o}, \ell_{n}$ we can substitute $v$ with. Moreover, we can move our invariant into the context. We will refer to $\lockInv (\gamma, \ell_{o}, \ell_{n}, P)$ as $I$ for the remainder of the proof in order to keep the notation shorter. We now use the \ruleref{Ht-Proj} rule followed by the \ruleref{Ht-let-det} and the \ruleref{Ht-bind-det} rules with the intermediate postcondition $\{w. (w = n \ast \locked (\gamma) \ast P) \lor (w \neq n \ast \issued (\gamma, n))\}$.
+So we first need to see what $\deref \ell_{o}$ evaluates to. In order to do this, we need to open our invariant with the \ruleref{Ht-inv-open} rule, since it holds the $\ell_{o} \pointsto o$ information we need. We then proceed by casing on whether $n = o$.
+In the case where $n \neq o$, we need to show:
+\begin{align*}
+  \knowInv{\iota}{I}\proves \hoare{\later I \ast n \neq o \ast \issued(\gamma, n)}{\deref \ell_{o}}{w. ((w = n \ast \locked (\gamma) \ast P) \lor (w \neq n \ast \issued (\gamma, n))) \ast \later I}
+\end{align*}
+We can now use the \ruleref{Ht-load} rule and choose to prove the right side of the disjunction in the postcondition, since we directly get this information from our precondition.
+In the case where $n = o$, we need to show:
+\begin{align*}
+  \knowInv{\iota}{I}\proves \hoare{\later I \ast n = o \ast \issued(\gamma, n)}{\deref \ell_{o}}{w. ((w = n \ast \locked (\gamma) \ast P) \lor (w \neq n \ast \issued (\gamma, n))) \ast \later I}
+\end{align*}
+Again we start with the \ruleref{Ht-load} rule. In this case, we need to prove the left side of the disjunction. We can now unpack $\issued$ and $I$ and replace $n$ with $o$. The composition of the different pieces of ghost state we now own is only valid if the left side of the disjunction in the precondition is currently true, i.e. we get:
+$$\ell_{o} \pointsto o \ast \ell_{n} \pointsto n \ast \ownGhost{\gamma}{\authfull (o, \{ i \mid 0 \leq i < n \})} \ast \ownGhost{\gamma}{\authfrag (o, \emptyset)} \ast P \ast \ownGhost{\gamma}{\authfrag (\epsilon, \{o\})}$$
+We can now reestablish the invariant, this time with the resources for the right side of the disjunction. This leaves us with:
+$\ownGhost{\gamma}{\authfrag (o, \emptyset)} \ast P$, which is exactly what we need for the postcondition $\locked (\gamma) \ast P$.
+
+The remaining proof obligation at this point is:
+\begin{align*}
+ \knowInv{\iota}{I}\proves \hoare{((o = n \ast \locked (\gamma) \ast P) \lor (o \neq n \ast \issued (\gamma, n)))}{\If{n = o}then{()}\Else{\wait n \; l}}{\_.P \ast \locked(\gamma)}
+\end{align*}
+Since our precondition is a disjunction, we will need to show the triple twice assuming the left and the right side respectively.
+If we assume the left side of the disjunction we need to show:
+\begin{align*}
+  \knowInv{\iota}{I}\proves \hoare{o = n \ast \locked (\gamma) \ast P}{\If{n = o}then{()}\Else{\wait n \; l}}{\_.P \ast \locked(\gamma)}
+\end{align*}
+Since our precondition gives us the result of the if statement, we can directly use \ruleref{Ht-If-True} and notice that the postcondition follows directly from our assumptions, so we are done.
+Assuming the right side, we have to show:
+\begin{align*}
+  \knowInv{\iota}{I}\proves \hoare{o \neq n \ast \issued (\gamma,n)}{\If{n = o}then{()}\Else{\wait n \; l}}{\_.P \ast \locked(\gamma)}
+\end{align*}
+Again, our precondition gives us the result to the if, so we can use the \ruleref{Ht-If-False} rule and end up with having to reason about the recursive call to $\wait$. The triple matches our outermost assumption, so we apply the induction hypothesis (\ie{} the assumption of the premise of the rule in Exercise~\ref{exercise:derived-rule-recursive-functions}) and are done.
+
+\subsubsection{acquire}
+With the specification for $\wait$ in place, we are now able to show the one for $\acquire$. We need to show the following triple:
+\begin{align*}
+  \hoare{\isLock(v, P, \gamma)}{\acquire (v)}{\_.P \ast \locked(\gamma)}
+\end{align*}
+Since $\acquire$ uses $\wait$ internally, the proof of this specification will make use of the one for $\wait$. Notice how the postconditions of both specifications are exactly the same. This means our proof intuitively consists of getting from our current precondition to the one for $\wait$ at the point where we call wait, since we can then apply its specification and be done.
+
+We begin the same way as with $\wait$, since we are dealing with a recursive definition again. So we assume:
+\begin{align*}
+  \hoare{\later \isLock(v, P, \gamma)}{\acquire (v)}{\_.P \ast \locked(\gamma)}
+\end{align*}
+and want to show:
+\begin{align*}
+  \hoare{\isLock(v, P, \gamma)}{\Let o = \deref (\Proj{2} v) in \dots}{\_.P \ast \locked(\gamma)}
+\end{align*}
+
+By unfolding the $\isLock$ predicate, we get the concrete pair of locations $\ell_{o}, \ell_{n}$ we can substitute $v$ with. Moreover, we can move our invariant into the context. Now we use \ruleref{Ht-let-det} twice and \ruleref{Ht-Proj} once. At this point we have the expression $\deref \ell_{n}$, so we need to open the invariant in order to access the $\ell_{n} \pointsto n$ information stored in it. Since we don't change anything, we can close the invariant again after getting the stored value $n$. This means we now need to show:
+\begin{align*}
+  \knowInv{\iota}{\lockInv (\gamma, \ell_{o}, \ell_{n}, P)}\proves \hoare{\TRUE}{\If{\CAS(\Proj{2} (\ell_{o}, \ell_{n}), o , o + 1) } then{\wait o \; v} \Else{\acquire v}}{\_.P \ast \locked(\gamma)}
+\end{align*}
+We use the \ruleref{Ht-Proj} and \ruleref{Ht-op} rules, followed by the bind rule with the intermediate goal.
+\begin{align*}
+  \knowInv{\iota}{\lockInv (\gamma, \ell_{o}, \ell_{n}, P)}\proves \hoare{\TRUE}{\CAS(\ell_{n}, o , o + 1)}{u. (u = \True \ast \issued (\gamma, o)) \lor u = \False)}
+\end{align*}
+Since $\CAS$ is atomic, we can open our invariant again. We then proceed by casing on $n = o$.
+If $n = o$, then we can use the \ruleref{Ht-CAS-succ} rule.
+By \ruleref{Ht-csq}, it is sufficient to show either side of the disjunction in the postcondition. In this case, we choose $(u = \True \ast \issued (\gamma, o))$. We can now update our authoritative ghost state from $\authfull (o, \{ i \mid 0 \leq i < n \})$ to $\authfull (o, \{ i \mid 0 \leq i < n \} \cup \{n \}) \cdot \authfrag (\emptyset, \{n\})$. 
+Performing the union gives us exactly the resources we need to close the invariant again. Moreover, the remaining ghost state $\authfrag (\emptyset, \{n\})$ is exactly $\issued (\gamma, n)$, so we are done with the intermediate goal. At this point we need to show:
+\begin{align*}
+  \knowInv{\iota}{\lockInv (\gamma, \ell_{o}, \ell_{n}, P)}\proves \hoare{\issued (\gamma, n)}{\If{\True} then{\wait n \; v} \Else{\acquire v}}{\_.P \ast \locked(\gamma)}
+\end{align*}
+We therefore proceed with the \ruleref{Ht-If-True} rule and end up exactly where we wanted to be in order to apply our $\wait$ specification, which takes care of the rest of this case.
+
+In the case of $n \neq o$, we apply the \ruleref{Ht-CAS-fail} rule and choose to prove the other side of the disjunction. We haven't changed anything and can therefore close our invariant again and are done with the intermediate goal. At this point, we need to show:
+\begin{align*}
+  \knowInv{\iota}{\lockInv (\gamma, \ell_{o}, \ell_{n}, P)}\proves \hoare{\TRUE}{\If{\False} then{\wait n \; v} \Else{\acquire v}}{\_.P \ast \locked(\gamma)}
+\end{align*}
+We therefore proceed with the \ruleref{Ht-If-False} rule and notice that the remaining proof obligation matches the assumption about the recursive call, so we are done.
+
+\subsubsection{release}
+The final obligation is the specification for the $\release$ method. We need to show the following triple:
+\begin{align*}
+      \hoare{ \isLock (v, P, \gamma) \ast \locked (\gamma) \ast P }{ \release (v) }{\_. \TRUE }.
+\end{align*}
+We begin with the \ruleref{Ht-beta} rule as usual. Unfolding the $\isLock$ predicate in the precondition, we get two specific locations, $\ell_{o}$ and $\ell_{n}$, and can therefore substitute $v$ for the pair of these two. Then we make use of the \ruleref{Ht-Proj} rule twice. At this point, we have to show:
+\begin{align*}
+      \hoare{ \lockInv (\gamma, \ell_{o}, \ell_{n}, P) \ast \locked (\gamma) \ast P }{ \ell_{o} \gets \deref \ell_{o} + 1 }{\_. \TRUE }.
+\end{align*}
+We now apply the \ruleref{Ht-bind-det} rule with $\deref \ell_{o}$. In
+order to reason about this expression, we need the information stored in
+our invariant. Since reading from a location is an atomic operation we can open our invariant at this point which will give us
+\begin{align*}
+\ell_{o} \pointsto o \ast \ell_{n} \pointsto n \ast \ownGhost{\gamma}{\authfull (o, \{ i \mid 0 < i \leq n \} )} \ast ((\ownGhost{\gamma}{\authfrag (o, \emptyset)} \ast P) \lor \ownGhost{\gamma}{\authfrag (\epsilon, \{o \})})
+\end{align*}
+for some
+numbers $o$ and $n$. So we can use the \ruleref{Ht-load} rule now that
+we have $\ell_{o} \pointsto o$ specifically.
+
+Unfolding the $\locked(\gamma)$ predicate gives us $\ownGhost{\gamma}{\authfrag (o', \emptyset)}$ for some number $o'$.
+Since the composition of this and the authoritative piece of ghost state must be valid, we get that $o = o'$ and we can therefore substitute one of them away.
+We now close our invariant again.
+
+We then bind $o + 1$, use the \ruleref{Ht-op} rule and are left
+with showing:
+\begin{align*}
+      \hoare{ \lockInv (\gamma, \ell_{o}, \ell_{n}, P) \ast \ownGhost{\gamma}{\authfrag (o, \emptyset)} \ast P }{ \ell_{o} \gets (o + 1) }{\_. \TRUE }.
+\end{align*}
+At this point, we can open the invariant again, since storing a value is atomic. As before, this gives us access to the needed location and we can therefore use the \ruleref{Ht-store} rule. We moreover again conclude that the two $o$ values in our ghost state must be the same. Apart from this, we can see that we have $\ownGhost{\gamma}{\authfrag (o, \emptyset)}$, which means that the disjunction part of the invariant must hold $\ownGhost{\gamma}{\authfrag (\epsilon, \{ o \} )}$, since the composition would otherwise not be valid. 
+
+At this point we can update
+\begin{align*}
+  \ownGhost{\gamma}{\authfull (o, \{ i \mid 0 \leq i < n \})} \cdot \ownGhost{\gamma}{\authfrag (o, \emptyset)}
+\end{align*}
+to
+\begin{align*}
+  \ownGhost{\gamma}{\authfull ((o + 1), \{ i \mid 0 \leq i < n \})} \cdot \ownGhost{\gamma}{\authfrag ((o + 1), \emptyset)},
+\end{align*}
+and then we can close the invariant again with these two pieces of ghost state along with $P$. 
+
+\subsection{Discussion}
+As mentioned earlier, the lock presented in this section is based on two counters.
+Earlier in the notes, we have already given different specifications for counters, but rather than utilizing these, the ticket lock implementation and proof refers to the implementation of the counters. Hence it is not modular --- ideally, we should be able to verify the ticket lock relative to an abstract specification of the counter module.
+This point will be addressed further in the following Section \ref{sec:modular-specs-of-concurrent-modules}.
+
+%%% Local Variables:
+%%% mode: latex
+%%% TeX-master: "../main.tex"
+%%% End:

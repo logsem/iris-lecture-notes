@@ -1,0 +1,246 @@
+\section{The Persistently Modality}
+\label{sec:introducing-persistently}
+
+\newcommand{\persduprule}[1][]
+{\rulegen[#1]{persistently-dup}
+  {}{\persistently P \provesIff \persistently P \ast P}}
+\newcommand{\persintrorule}[1][]
+{\rulegen[#1]{persistently-intro}
+  {\persistently P \proves Q}{\persistently P \proves \persistently Q}}
+\newcommand{\persseprule}[1][]
+{\rulegenhref[#1]{persistently-sep}{Persistently-sep}
+  {S \proves \persistently{\prop} \land \propB}
+  {S \proves \persistently{\prop} \ast\propB}}
+\newcommand{\perssepderivedrule}[1][]
+{\rulegenhref[#1]{persistenly-sep-derived}{Persistently-sep-derived}
+  {S \proves \persistently{(\prop \land \propB)}}
+  {S \proves \persistently{(\prop \ast\propB)}}}
+\newcommand{\persmonorule}[1][]
+{\rulegen[#1]{persistently-mono}
+{\prop \proves \propB}{\persistently{\prop} \proves \persistently{\propB}}}
+\newcommand{\perselimrule}[1][]
+{\rulegen[#1]{persistently-E}
+{}{\persistently\prop \proves \prop}}
+\newcommand{\persidemprule}[1][]
+{\rulegen[#1]{persistently-idemp}
+{}{\persistently{\prop} \proves \persistently\persistently\prop}}
+\newcommand{\htpersrule}[1][]
+{\rulegenb[#1]{Ht-persistently}
+{\persistently\propB \land S \proves \hoare{\prop}{\expr}{\Ret\val.\propC}}
+    { S \proves \hoare{\prop \land \persistently{\propB}}{\expr}{\Ret\val.\propC}}}
+\newcommand{\htreclob}[1][]
+{\rulegen[#1]{Ht-rec-lob}
+{ \Gamma, f : \Val \mid Q \land \All y . \All v. \hoare{\later P}{f v}{ \Phi } \proves \All y . \All v. \hoare{P}{e[v/x]}{\Phi}}
+    { \Gamma \mid Q \proves \All y . \All v. \hoare{\later P}{(\Rec{f} x = e) v}{\Phi}}}
+\newcommand{\persandrule}[1][]
+  {\rulegenhref[#1]{persistently-$\wedge$}{persistently-and}{}
+   {\persistently(\prop \land \propB) \provesIff \persistently\prop \land \persistently\propB}}
+\newcommand{\persorrule}[1][]
+{\rulegenhref[#1]{persistently-$\vee$}{persistently-or}{}
+{\persistently(\prop \lor \propB) \provesIff \persistently\prop \lor \persistently\propB}}
+\newcommand{\perslaterrule}[1][]
+{\rulegenhref[#1]{persistently-$\later$}{persistently-later}{}
+{\persistently\later \prop \provesIff \later\persistently\prop}}
+\newcommand{\persforallrule}[1][]
+{\rulegenhref[#1]{persistently-$\forall$}{persistently-forall}{}
+{\All x. \persistently{\prop} \provesIff \persistently{\All x. \prop}}}
+\newcommand{\persexistsrule}[1][]
+{\rulegenhref[#1]{persistently-$\exists$}{persistently-exists}{}
+{\persistently{\Exists x. \prop} \provesIff \Exists x. \persistently{\prop}}}
+\newcommand{\perstruerule}[1][]
+{\rulegen[#1]{persistently-True}{}{\TRUE \provesIff \persistently{\TRUE}}}
+\newcommand{\perstermeqrule}[1][]
+{\rulegen[#1]{persistently-Eq}{}{t =_\tau t' \provesIff \persistently (t =_\tau t')}}
+\newcommand{\pershtrule}[1][]
+{\rulegen[#1]{persistently-Ht}{}{\hoare{P}{e}{\Phi} \provesIff \persistently \hoare{P}{e}{\Phi}}}
+The rules \ruleref{Ht-Ht} and \ruleref{Ht-Eq} and their generalizations involving $\later$ used in Section~\ref{sec:introducing-later} are somewhat ad-hoc.
+For instance, they do not allow us to move disjunctions of persistent propositions in and out of preconditions.
+This could be addressed by having a separate category of propositions which could be moved in and out of preconditions, and this category would be closed under all connectives of higher-order logic.
+However it would still not address the issue of how to ensure that a proposition is persistent \emph{inside the logic}.
+This latter issue is important when using the logic for more advanced examples.
+For instance it is crucial for defining Hoare triples from the notion of weakest precondition which we consider in Section~\ref{sec:first-steps-towards-base-logic}, and for other more advanced uses of the logic.
+In this section we present a more uniform way of treating persistent propositions, which also addresses the second issue.
+We introduce a new modality $\persistently$ (pronounced ``persistently'').
+
+The intuitive reading of $\persistently P$ is that it contains only those resources of $P$ which can be split into a duplicable resource $s$ in $P$ and some other resource $r$, \ie{} those which have a duplicable part in $P$.
+Thus $\persistently P$ is like $P$ except that it does not assert any exclusive ownership over resources.
+An example of a duplicable resource is the empty heap.
+If resources are heaps then that is the only duplicable resource.
+As a concrete example of where this is not the case (this example is also related to the notion of invariants we introduce later) we can imagine a slight refinement of heaps as a notion of resource.
+Suppose that each heap is split into two parts $(h_r, h_w)$, where $h_r$ is read-only, and $h_w$ is an ordinary heap which supports reading and writing.
+Composition of $(h_r, h_w)$ and $(h_r', h_w')$ is only defined when the components $h_r$ and $h_r'$ are the same, and moreover the composition of $h_w$ and $h_w'$ is defined as composition of ordinary heaps.
+Then the duplicable part of the element $(h_r, h_w)$ is the element $(h_r, \emptyset)$, where $\emptyset$ is the empty heap.
+
+Duplicable resources are important because we can always create a copy of them to give away to other threads.
+One way to state this precisely is the following rule
+\begin{mathpar}
+  \persduprule[-inline]
+\end{mathpar}
+This rule is derivable from the axioms for the persistently modality, which
+are shown in Figure~\ref{fig:laws-for-persistently}.
+We discuss these below.
+
+We call a proposition $P$ \emph{persistent} if it satisfies $P \proves \persistently P$.
+Persistent propositions are important because they are duplicable, see
+Exercise~\ref{ex:always:derived}.
+
+An example of a persistent proposition is the equality relation.
+A \emph{non-example} of a persistent proposition is the points-to predicate $x \pointsto v$.
+Indeed, any heap in $x \pointsto v$ contains at least one location, namely $x$.
+Hence the empty heap is not in $x \pointsto v$.
+By the same reasoning we have $\persistently (x \pointsto v) \provesIff \FALSE$.
+
+Given the above intuitive reading of $\persistently P$,
+the first three axioms for $\persistently$ in Figure~\ref{fig:laws-for-persistently},
+\ruleref{persistently-mono}, \ruleref{persistently-E} and \ruleref{persistently-idemp},
+are immediate.
+These three rules together allow us to prove the 
+following ``introduction'' rule for the persistently modality.
+\begin{mathpar}
+  \persintrorule
+\end{mathpar}
+
+\begin{exercise}
+  Prove the above introduction rule.
+\end{exercise}
+
+
+The rules in the right column of Figure~\ref{fig:laws-for-persistently}
+state that $\TRUE$ is persistent.  If resources are heaps then $\TRUE$
+is the set of all heaps.  Hence $\TRUE$ in particular contains the
+empty heap and thus $\persistently \TRUE = \TRUE$.  The rest of the rules
+state that $\persistently$ commutes with the propositional connectives.  We
+do not explain why that is the case since that would require us to
+describe a model of the logic.
+
+Next comes the rule \ruleref{Persistently-sep} and the derived rule \ruleref{Persistently-sep-derived}.
+They govern the interaction between separating conjunction, conjunction, and the persistently modality.
+\begin{mathpar}
+  \persseprule[-inline]
+\end{mathpar}
+The intuitive reason for why this rule 
+holds is that any resource $r$ in $\persistently P$ and $Q$ can be split
+into a duplicable resource $s$ in $P$ (and since it is duplicable
+also in $\persistently P$) and $r$.
+Hence $r$ is in $\persistently{\prop} \ast\propB$.
+
+There is an important derived rule which states that under the persistently
+modality conjunction and separating conjunction coincide.  The rule is
+\begin{mathpar}
+  \perssepderivedrule
+\end{mathpar}
+which is equivalent to the entailment
+\begin{align*}
+  \persistently{(\prop \land \propB)} \proves \persistently{(\prop \ast\propB)}.
+\end{align*}
+To derive this entailment we first show the following:
+\begin{align}
+  \label{eq:persistently-duplicable}
+  \infer{P \proves \persistently P}{P \proves P \ast P}.
+\end{align}
+Indeed, using $P \proves \persistently P$ we have
+\begin{align*}
+  P \proves \persistently P \proves \persistently P \land \persistently P \proves \persistently P \ast \persistently P \proves P \ast P
+\end{align*}
+using the rule \ruleref{Persistently-sep} in the third step, and $\persistently P \proves P$ and monotonicity of separating conjunction in the last.
+
+Next, by the fact that $\persistently$ commutes with conjunction and 
+\eqref{eq:persistently-duplicable}, we have
+\begin{align*}
+  \persistently P \land \persistently Q \proves \persistently (P \land Q) \proves \persistently (P \land Q) \ast \persistently (P \land Q)
+\end{align*}
+Now, using the fact that $P \land Q \proves P$ and
+$P \land Q \proves Q$ and monotonicity of $\persistently$ and $\ast$, we have
+\begin{align*}
+  \persistently (P \land Q) \ast \persistently (P \land Q) \proves \persistently P \ast \persistently Q.
+\end{align*}
+Hence we have proved
+\begin{align}
+  \label{eq:persistently-land-sep-coincide}
+  \persistently P \land \persistently Q \proves \persistently P \ast \persistently Q.
+\end{align}
+With this we can finally derive \ruleref{Persistently-sep-derived} as follows
+\begin{align*}
+  \persistently(P \land Q) \proves \persistently\persistently(P \land Q) \proves \persistently(\persistently P \land \persistently Q) \proves \persistently(\persistently P \ast \persistently Q) \proves \persistently(P \ast Q)
+\end{align*}
+where in the last step we again use $\persistently P \proves P$ and monotonicity of separating conjunction.
+
+\begin{figure}[htbp]
+  \begin{mathpar}
+    \persduprule
+    \and
+    \persmonorule
+    \and
+    \perselimrule
+    \and
+    \persidemprule
+    \and
+    \persseprule
+  \end{mathpar}
+  The persistently modality additionally has the following structural rules.
+  \begin{mathpar}
+    \persandrule
+    \and
+    \persorrule
+    \and
+    \perslaterrule
+    \\
+    \persforallrule
+    \and
+    \persexistsrule
+  \end{mathpar}
+  Finally we have three kinds of primitive persistent propositions.
+  \begin{mathpar}
+    \perstruerule
+    \and
+    \perstermeqrule
+    \and
+    \pershtrule
+  \end{mathpar}
+  We have the following rule \ruleref{Ht-persistently} which, combined with the rules above, generalizes \ruleref{Ht-Ht}, \ruleref{Ht-Eq} and \ruleref{Ht-False}.
+  \begin{mathparpagebreakable}
+    \htpersrule
+  \end{mathparpagebreakable}
+  \caption{Laws for the persistently modality.}
+  \label{fig:laws-for-persistently}
+\end{figure}
+
+\begin{exercise}
+  \label{ex:always:derived}
+  Using similar reasoning show the following derived rules.
+  \begin{enumerate}
+  \item $\persistently\persistently P \proves \persistently P$
+  \item $\persistently (P \Ra Q) \proves \persistently P \Ra \persistently Q$
+  \item $P \Ra Q \proves P \wand Q$
+  \item $\persistently (P \wand Q) \proves \persistently (P \implies Q)$
+  \item $\persistently (P \wand Q) \proves \persistently P \wand \persistently Q$
+  \item $\persistently P \implies Q \proves \persistently P \wand Q$
+  \item if $P \proves \persistently Q$ then $P \proves \persistently Q \ast P$.
+  \item $(P \wand (Q \ast \persistently R)) \ast P \proves (P \wand (Q \ast \persistently R)) \ast P \ast \persistently R$
+  \end{enumerate}
+  The last two items are often useful.
+  They state that we can get persistent propositions without consuming resources.
+\end{exercise}
+
+
+\begin{exercise}
+  Derive $\persistently(x \pointsto v) \proves \FALSE$ using the rules in Figure~\ref{fig:laws-for-persistently} and the basic axioms of the points-to predicate.
+\end{exercise}
+
+
+\begin{exercise}
+  \label{exercise:derived-rule-recursive-functions}
+  Show the following derived rule for recursive function calls from the rule \ruleref{Ht-Rec} above.
+  \begin{mathpar}
+    \htreclob
+  \end{mathpar}
+  Hint: Start with L\"ob induction.
+  Use the rule \ruleref{Ht-persistently} to move the L\"ob induction hypothesis into the precondition.
+  Then use the recursion rule \ruleref{Ht-Rec}, and again \ruleref{Ht-persistently}.
+  You are almost there.
+\end{exercise}
+
+%%% Local Variables:
+%%% mode: latex
+%%% TeX-master: "../main.tex"
+%%% End:

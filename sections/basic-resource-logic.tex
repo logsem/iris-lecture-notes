@@ -1,0 +1,659 @@
+\section{The Logic of Resources}
+\label{sec:sep-logic}
+
+%% The rules for basic resource logics
+\newcommand{\etaunitrule}[1][]
+{\rulegenhref[#1]{unit-$\eta$}{unit-eta}
+  {\Gamma \proves t : 1}
+  {\Gamma \proves t \equiv ()}}
+\newcommand{\lambdabetarule}[1][]
+{\rulegenhref[#1]{$\lambda-\beta$}{lambda-beta}
+  { }{\Gamma \proves (\Lam x : \tau. e_1)(e_2) \equiv e_1[e_2/x]}}
+\newcommand{\lambdaetarule}[1][]
+{\rulegenhref[#1]{$\lambda-\eta$}{lambda-eta}
+  {x \text{ not free in } e \and \Gamma \proves e : \tau_1 \to \tau_2}
+  {\Gamma \proves (\lambda x . e(x)) \equiv e}}
+\newcommand{\pibetarule}[1][]
+{\rulegenhref[#1]{$\pi-\beta$}{pi-beta}
+  { }{\Gamma \proves \pi_i(e_1, e_2) \equiv e_i}}
+\newcommand{\pietarule}[1][]
+{\rulegenhref[#1]{$\pi-\eta$}{pi-eta}
+  {\Gamma \proves e : \tau_1 \times \tau_2}
+  {\Gamma \proves e \equiv (\pi_1 e, \pi_2 e)}}
+\newcommand{\inlbetarule}[1][]
+{\rulegenhref[#1]{inl-$\beta$}{inl-beta}
+  { }
+  {\Gamma \proves \case{\inl e}{x}{e_1}{y}{e_2} \equiv e_1[e/x]}}
+\newcommand{\inrbetarule}[1][]
+{\rulegenhref[#1]{inr-$\beta$}{inr-beta}
+  { }
+  {\Gamma \proves \case{\inr e}{x}{e_1}{y}{e_2} \equiv e_2[e/y]}}
+\newcommand{\caseetarule}[1][]
+{\rulegenhref[#1]{case-$\eta$}{case-eta}
+  {\Gamma \proves e : \tau + \sigma \and \Gamma, z : \tau + \sigma \proves e_1 : \rho }
+  {\Gamma \proves \case{e}{x}{e_1[\inl x/z]}{y}{e_1[\inr y/z]} \equiv e_1[e/z]}}
+
+\newcommand{\logicwtrule}[1][]
+{\rulegen[#1]{W-T}
+  {\vctx\mid \prop \proves \propB}
+  {\vctx,\var : \type\mid \prop \proves \propB}}
+\newcommand{\logicetrule}[1][]
+{\rulegen[#1]{E-T}
+  {\vctx,\var : \type,\varB :\typeB\mid \prop \proves \propB}
+  {\vctx,\varB : \typeB, \var :\type\mid \prop \proves \propB}}
+\newcommand{\logicctrule}[1][]
+{\rulegen[#1]{C-T}
+  {\vctx,\var : \type,\varB :\typeB\mid \prop \proves \propB}
+  {\vctx,\var : \type\mid \prop[\var/\varB] \proves \propB[\var/\varB]}}
+\newcommand{\logicsubstrule}[1][]
+{\rulegen[#1]{Subst}
+  {\vctx \mid M : \type\\ \vctx, \var:\type \mid \prop \proves \propB}
+  {\vctx \mid \prop[M/\var] \proves \propB[M/\var]}}
+\newcommand{\logicasmrule}[1][]
+{\rulegen[#1]{Asm}
+  { }
+  {P \proves P}}
+\newcommand{\logictransrule}[1][]
+{\rulegen[#1]{Trans}
+  {P \proves Q \and Q \proves R}
+  {P \proves R}}
+\newcommand{\logiceqrule}[1][]
+{\rulegen[#1]{Eq}
+  {\vctx,\var:\type \proves \wtt\propB\Prop \\ \vctx\mid\prop \proves \propB[\term/\var] \\ \vctx\mid\prop \proves \term =_\type \term'}
+  {\vctx\mid\prop \proves \propB[\term'/\var]}}
+\newcommand{\logiceqreflrule}[1][]
+{\rulegen[#1]{Eq-Refl}
+  { }
+  {P \proves \term =_\type \term}}
+\newcommand{\logiceqsymmrule}[1][]
+{\rulegen[#1]{Eq-Symm}
+  {P \proves \term =_\type \termB}
+  {P \proves \termB =_\type \term}}
+\newcommand{\logiceqtransrule}[1][]
+{\rulegen[#1]{Eq-Trans}
+  {P \proves \term_1 =_\type \term_2 \\ P \proves \term_2 =_\type \term_3}
+  {P \proves \term_1 =_\type \term_3}}
+\newcommand{\logicbotelimrule}[1][]
+{\rulegenhref[#1]{$\bot$E}{false-E}
+  {Q \proves \FALSE}
+  {Q \proves \prop}}
+\newcommand{\logictopintrorule}[1][]
+{\rulegenhref[#1]{$\top$I}{true-I}
+  {}
+  {Q \proves \TRUE}}
+\newcommand{\logicandintrorule}[1][]
+{\rulegenhref[#1]{$\wedge$I}{and-I}
+  {R \proves \prop \\ R \proves \propB}
+  {R \proves \prop \wedge \propB}}
+\newcommand{\logicandelimleftrule}[1][]
+{\rulegenhref[#1]{$\wedge$EL}{and-EL}
+  {R \proves \prop \wedge \propB}
+  {R \proves \prop}}
+\newcommand{\logicandelimrightrule}[1][]
+{\rulegenhref[#1]{$\wedge$ER}{and-ER}
+  {R \proves \prop \wedge \propB}
+  {R \proves \propB}}
+\newcommand{\logicorintroleftrule}[1][]
+{\rulegenhref[#1]{$\vee$IL}{or-IL}
+  {R \proves \prop }
+  {R \proves \prop \vee \propB}}
+\newcommand{\logicorintrorightrule}[1][]
+{\rulegenhref[#1]{$\vee$IR}{or-IR}
+  {R \proves \propB}
+  {R \proves \prop \vee \propB}}
+\newcommand{\logicorelimrule}[1][]
+{\rulegenhref[#1]{$\vee$E}{or-I}
+  {S \proves \prop \vee \propB \\
+   S \land \prop \proves \propC \\
+   S \land \propB \proves \propC}
+  {S \proves \propC}}
+\newcommand{\logicimplintrorule}[1][]
+{\rulegenhref[#1]{$\Ra$I}{impl-I}
+  {R \land \prop \proves \propB}
+  {R \proves \prop \Ra \propB}}
+\newcommand{\logicimplelimrule}[1][]
+{\rulegenhref[#1]{$\Ra$E}{impl-E}
+  {R \proves \prop \Ra \propB \\ R \proves \prop}
+  {R \proves \propB}}
+\newcommand{\logicforallintrorule}[1][]
+{\rulegenhref[#1]{$\forall$I}{forall-I}
+  {\vctx,\var : \type\mid Q \proves \prop}
+  {\vctx\mid Q \proves \forall \var: \type.\; \prop}}
+\newcommand{\logicforallelimrule}[1][]
+{\rulegenhref[#1]{$\forall$E}{forall-E}
+  {\vctx\mid Q \proves \forall \var :\type.\; \prop \\
+   \vctx \proves \wtt\term\type}
+  {\vctx\mid Q \proves \prop[\term/\var]}}
+\newcommand{\logicexistsintrorule}[1][]
+{\rulegenhref[#1]{$\exists$I}{exists-I}
+  {\vctx\mid Q  \proves \prop[\term/\var] \\
+   \vctx \proves \wtt\term\type}
+  {\vctx\mid Q \proves \exists \var: \type. \prop}}
+\newcommand{\logicexistselimrule}[1][]
+{\rulegenhref[#1]{$\exists$E}{exists-E}
+  {\vctx\mid R \proves \exists \var: \type.\; \prop \\
+   \vctx,\var : \type\mid R \land \prop \proves \propB}
+  {\vctx\mid R \proves \propB}}
+
+\newcommand{\logicstarweakrule}[1][]
+{\rulegenhref[#1]{$\ast$-weak}{star-weak}
+  { }
+  {P_1 \ast P_2 \proves P_1}}
+\newcommand{\logicstarassocrule}[1][]
+{\rulegenhref[#1]{$\ast$-assoc}{star-assoc}
+  { }
+  {P_1 \ast (P_2 \ast P_3) \provesIff (P_1 \ast P_2) \ast P_3}}
+\newcommand{\logicstarcommrule}[1][]
+{\rulegenhref[#1]{$\ast$-comm}{star-comm}
+  { }
+  {P_1 \ast P_2 \provesIff P_2 \ast P_1}}
+\newcommand{\logicstarintrorule}[1][]
+{\rulegenhref[#1]{$\ast$I}{star-I}
+  {P_1 \proves Q_1 \and P_2 \proves Q_2 }
+  {P_1 \ast P_2 \proves Q_1 \ast Q_2 }}
+\newcommand{\logicwandintrorule}[1][]
+{\rulegenhref[#1]{$\wand$I}{wand-I}
+  {R \ast \prop \proves \propB}
+  {R \proves \prop \wand \propB}}
+\newcommand{\logicwandelimrule}[1][]
+{\rulegenhref[#1]{$\wand$E}{wand-E}
+  {R_1 \proves \prop \wand \propB \and R_2 \proves \prop}
+  {R_1 \ast R_2 \proves \propB}}
+
+\newcommand{\logicwandelimaltrule}[1][]
+{\rulegenhref[#1]{$\wand$E'}{wand-E'}
+  {P \proves Q \wand R}{P \ast Q \proves R}}
+\newcommand{\logicstarorcommrule}[1][]
+{\rulegenhref[#1]{$\ast$-$\vee$-comm}{star-or-comm}
+  { }{P \ast (Q \lor R) \provesIff P \ast Q \lor P \ast R}}
+\newcommand{\logicstarexistscommrule}[1][]
+{\rulegenhref[#1]{$\ast$-$\exists$-comm}{star-exists-comm}
+  {x \notin \freevars{P}}{P \ast \Exists x . \Phi \provesIff \Exists x . P \ast \Phi}}
+\newcommand{\logicandexistscommrule}[1][]
+{\rulegenhref[#1]{$\wedge$-$\exists$-comm}{and-exists-comm}
+  {x \notin \freevars{P}}{P \land \Exists x . \Phi \provesIff \Exists x . P \land \Phi}}
+
+Iris is a higher-order logic.
+A logic is used to state and prove properties of ``things''.
+For instance, a natural number is such a ``thing'', as is a list of natural numbers, a value of a programming language, etc.
+These things need to be written in some language.
+In the case of Iris the underlying language of ``things'' is \emph{simple type theory} with a number of basic constants.
+These basic constants are given by the \emph{signature} $\Sig$.
+
+Note that this language of ``things'' is different from the \emph{programming language} introduced in Section~\ref{sec:setup}.
+In fact terms of the programming language are one of the ``things'' we reason about.
+It is regrettable that the notation is often very similar, \eg{}, both the language of terms of Iris as well as the programming language have lambda abstraction, pairs, sums.
+We hope the reader will get used to the distinction.
+
+We introduce the different notions of Iris step by step, starting with a minimal separation logic useful for a sequential language.
+\paragraph{Syntax.}
+Iris syntax is built up from a signature $\Sig$ and a countably infinite set $\textdom{Var}$ of variables (ranged over by metavariables $x$, $y$, $z$).
+The signature in particular contains a list of function symbols $\SigFn$ with their arities, \ie{} their types.
+For a function symbol $\sigfn$ we write $\sigfn : \type_1, \dots, \type_n \to \type_{n+1} \in \SigFn$ to mean that it can be applied to a tuple of terms of types $\type_1, \dots, \type_n$, and the result is of type $\type_{n+1}$.
+An example of a function symbol is addition of integers.
+Its arity is $\mathbb{Z}, \mathbb{Z} \to \mathbb{Z}$ where $\mathbb{Z}$ is the type of integers.
+
+The types of Iris are built up from the following grammar, where $\sigtype$ stands for additional base types which we will add later, $\Val$ and $\Expr$ are types of values and expressions in the language, and $\Prop$ is the type of Iris propositions.
+\begin{align*}
+  \type \bnfdef{}
+  &
+    \sigtype \mid
+    \integer \mid
+    \Val \mid
+    \Expr \mid
+    \Prop \mid
+    1 \mid
+    \type + \type \mid
+    \type \times \type \mid
+    \type \to \type
+\end{align*}%
+%
+The corresponding terms of Iris are defined below.
+They will be extended later when we introduce new concepts of Iris,
+and some of the terms that we treat as primitive now will turn out to be defined concepts.
+\begin{align*}
+  \term, \prop \bnfdef{}
+  &
+    \var \mid n \mid v \mid e \mid \sigfn(\term_1, \dots, \term_n) \mid
+  \\&    
+    () \mid
+    (\term, \term) \mid
+    \pi_i\; \term \mid
+    \Lam \var:\type.\term \mid
+      \term(\term)  \mid
+  \\&
+      \inl\term \mid
+      \inr\term \mid
+      \case{\term}{x}{\term}{y}{\term}\mid
+  \\&
+    \FALSE \mid
+    \TRUE \mid
+    \term =_\type \term \mid
+    \prop \Ra \prop \mid
+    \prop \land \prop \mid
+    \prop \lor \prop \mid
+    \prop \ast\prop \mid
+    \prop \wand \prop \mid
+  \\&
+    \Exists \var:\type. \prop \mid
+    \All \var:\type. \prop \mid
+  \\&
+    \persistently\prop \mid
+    {\later\prop} \mid
+  \\&
+    \hoare{\prop}{\term}{\prop} \mid
+  \\& 
+    t \pointsto t
+\end{align*}
+where $x$ are variables, $n$ are integers, $v$ and $e$ range over values of the language (\ie{} they are primitive terms of types $\Val$ and $\Expr$), and $F$ ranges over the function symbols in the signature $\Sig$.
+
+The term $()$ is the only term of the unit type $1$, $(t,t)$ are pairs, $\pi_i t$ is the projection, $\Lam \var : \type.\term$ is the lambda abstraction and $t(t)$ denotes function application.
+Next there are introduction forms for sums ($\inl$ and $\inr$) and the corresponding elimination form $\operatorname{case}$.
+
+The rest of the terms are logical constructs.
+Most of them are standard propositional connectives.
+The additional constructs are separating conjunction ($\ast$) and magic wand ($\wand$), which will be explained in Section~\ref{sec:sep-logic}.
+Then there are the later modality $\later P$, explained in Section~\ref{sec:introducing-later}, and the persistently modality $\persistently P$, explained in Section~\ref{sec:introducing-persistently}.
+Finally we have the Hoare triples $\hoare{P}{t}{P}$ and the points-to predicate $t \pointsto t$, which are explained in Section~\ref{sec:basic-separation-logic}.
+
+The typing rules of the language of terms are shown in Figure~\ref{fig:type-rules-logic}.
+The judgments take the form $\vctx \proves_\Sig \wtt{\term}{\type}$ and express when a term $\term$ has type $\type$ in context $\vctx$, given signature $\Sig$.
+The variable context $\vctx$ assigns types to variables of the logic.
+It is a list of pairs of a variable $x$ and a type $\tau$ such that all the variables are distinct.
+We write contexts in the usual way, \eg{} $x_1 : \tau_1, x_2 : \tau_2$ is a context.
+
+\newcommand{\typingrules}{
+  \centering
+\judgment[Well-typed terms of the basic logic]{\vctx \proves_\Sig \wtt{\term}{\type}}
+\begin{mathparpagebreakable}
+%%% variables and function symbols
+	\infer{ }{x : \type \proves \wtt{x}{\type}}
+\and
+	\infer{\vctx \proves \wtt{\term}{\type}}
+		{\vctx, x:\type' \proves \wtt{\term}{\type}}
+\and
+	\infer{\vctx, x:\type', y:\type' \proves \wtt{\term}{\type}}
+		{\vctx, x:\type' \proves \wtt{\term[x/y]}{\type}}
+\and
+	\infer{\vctx_1, x:\type', y:\type'', \vctx_2 \proves \wtt{\term}{\type}}
+		{\vctx_1, x:\type'', y:\type', \vctx_2 \proves \wtt{\term[y/x,x/y]}{\type}}
+\and
+	\infer{
+		\vctx \proves \wtt{\term_1}{\type_1} \and
+		\cdots \and
+		\vctx \proves \wtt{\term_n}{\type_n} \and
+		\sigfn : \type_1, \dots, \type_n \to \type_{n+1} \in \SigFn
+	}{
+		\vctx \proves \wtt {\sigfn(\term_1, \dots, \term_n)} {\type_{n+1}}
+	}
+%%% values and expressions
+\and
+    \infer{v \in \Val}{\vctx \proves \wtt{v}{\Val}}
+\and
+    \infer{e \in \Expr}{\vctx \proves \wtt{e}{\Expr}}
+%%% products
+\and
+	\infer{ }{\vctx \proves \wtt{()}{1}}
+\and
+	\infer{\vctx \proves \wtt{\term}{\type_1} \and \vctx \proves \wtt{\termB}{\type_2}}
+		{\vctx \proves \wtt{(\term,\termB)}{\type_1 \times \type_2}}
+\and
+	\infer{\vctx \proves \wtt{\term}{\type_1 \times \type_2} \and i \in \{1, 2\}}
+		{\vctx \proves \wtt{\pi_i\,\term}{\type_i}}
+%%% functions
+\and
+	\infer{\vctx, x:\type \proves \wtt{\term}{\type'}}
+		{\vctx \proves \wtt{\Lam x. \term}{\type \to \type'}}
+\and
+	\infer
+	{\vctx \proves \wtt{\term}{\type \to \type'} \and \wtt{\termB}{\type}}
+	{\vctx \proves \wtt{\term(\termB)}{\type'}}
+\\
+	\infer{ }{\vctx \proves \wtt{\FALSE}{\Prop}}
+\and
+	\infer{ }{\vctx \proves \wtt{\TRUE}{\Prop}}
+\and
+	\infer{\vctx \proves \wtt{\term}{\type} \and \vctx \proves \wtt{\termB}{\type}}
+		{\vctx \proves \wtt{\term =_\type \termB}{\Prop}}
+\and
+	\infer{\vctx \proves \wtt{\prop}{\Prop} \and \vctx \proves \wtt{\propB}{\Prop}}
+		{\vctx \proves \wtt{\prop \Ra \propB}{\Prop}}
+\and
+	\infer{\vctx \proves \wtt{\prop}{\Prop} \and \vctx \proves \wtt{\propB}{\Prop}}
+		{\vctx \proves \wtt{\prop \land \propB}{\Prop}}
+\and
+	\infer{\vctx \proves \wtt{\prop}{\Prop} \and \vctx \proves \wtt{\propB}{\Prop}}
+		{\vctx \proves \wtt{\prop \lor \propB}{\Prop}}
+\and
+	\infer{\vctx \proves \wtt{\prop}{\Prop} \and \vctx \proves \wtt{\propB}{\Prop}}
+		{\vctx \proves \wtt{\prop \ast\propB}{\Prop}}
+\and
+	\infer{\vctx \proves \wtt{\prop}{\Prop} \and \vctx \proves \wtt{\propB}{\Prop}}
+		{\vctx \proves \wtt{\prop \wand \propB}{\Prop}}
+\and
+	\infer{\vctx, x:\type \proves \wtt{\prop}{\Prop}}
+		{\vctx \proves \wtt{\Exists x:\type. \prop}{\Prop}}
+\and
+	\infer{\vctx, x:\type \proves \wtt{\prop}{\Prop}}
+		{\vctx \proves \wtt{\All x:\type. \prop}{\Prop}}
+\end{mathparpagebreakable}
+}
+
+\begin{figure}[htbp]
+  \typingrules
+  \caption{Typing Rules for Terms of the Logic}
+  \label{fig:type-rules-logic}
+\end{figure}
+
+\subsection{Propositions and entailment}
+\label{sec:propositions-and-entailment}
+
+The entailment rules of the logic are of the form
+\begin{align*}
+  \vctx \mid P \proves Q
+\end{align*}
+and, as usual, intuitively express that $Q$ is provable from assumption $P$.
+Here $P$ and $Q$ are supposed to be well-typed propositions, \ie{} $\vctx \proves \wtt{P}{\Prop}$ and $\vctx \proves \wtt{Q}{\Prop}$.
+
+When stating the rules of the logic we omit the context $\Gamma$ if it does not change from premises to the conclusion of the rule.
+Moreover if there are multiple premises then we assume that the omitted context $\Gamma$ is the same in all of them.
+The rules can be found in Figure~\ref{fig:logic-entailment}.
+The first set of rules are the standard entailment rules of intuitionistic%
+\footnote{Intuitionistic refers to the fact that we \emph{do not} assume the law of excluded middle $\TRUE \proves P \lor \lnot P$.
+  This law is incompatible with some of the features of the logic we introduce later.} higher-order logic.
+In addition, we have rules for the new logical connectives $\ast$ and $\wand$.
+We explain the new rules in the following.
+
+In Figure~\ref{fig:laws-interaction-of-connectives} on page~\pageref{fig:laws-interaction-of-connectives} we list additional rules which state how different connectives interact.
+These rules are derivable.
+
+\paragraph{Terminology}
+A word about terminology.
+We generally use ``proposition'' for terms of type $\Prop$ and ``predicate'' for terms of type $\tau \to \Prop$ for types $\tau$.
+However the distinction is not so clear since, if $P : \tau \to \Prop$ is a predicate and $x : \tau$, then $P x$ is a proposition.
+Moreover, propositions can be thought of as nullary predicates, that is, predicates on the type $1$.
+Thus the decision of when to use which term is largely a matter of convention and is not significant.
+
+\paragraph{Intuition for Iris propositions}
+Intuitively, an Iris proposition describes a set of resources.
+A canonical example of a resource is a heap fragment.
+So far we have not introduced any primitives for talking about resources.
+One such primitive is the ``points-to'' predicate $x \pointsto v$,
+which we will use extensively in Section~\ref{sec:basic-separation-logic} in connection with Hoare triples.
+For now it is enough to think of $x\pointsto v$ as follows.
+It describes the set of all heap fragments that map location $x$ to
+value $v$ (in particular location $x$ needs to exist in the heap).
+
+In addition there is another reading, another intuition, for Iris propositions.
+Propositions \emph{assert ownership of resources}.
+For example, $x \pointsto v$ asserts that we have the sole authority, \ie{} exclusive ownership, of the portion of the heap which contains the location $x$.
+This means that we are free to read and modify the value stored at $x$.
+This intuition will become clearer in connection with Hoare triples, and the ownership reading of propositions will become particularly useful when programs contain multiple threads.
+
+With this intuition the proposition $P\ast Q$ describes the set of resources which can be split up into two disjoint parts, with one part described by $P$ and the other part described by $Q$.
+
+For example, $x\pointsto u \ast y \pointsto v$ describes the set of heaps with two \emph{disjoint} locations $x$ and $y$, the first stores $u$ and the second $v$.
+
+The proposition $P\wand Q$ describes those resources $r$ which satisfy
+that, if we combine $r$ with a disjoint resource described $r'$ by
+$P$, then we get a resource described by $Q$.
+For example, the proposition
+\begin{align*}
+  x\pointsto u\wand \left(x\pointsto u \ast y\pointsto v\right)
+\end{align*}
+describes those heap fragments that map $y$ to $v$, because when we combine it with a heap fragment mapping $x$ to $u$, then we get a heap fragment mapping $x$ to $u$ and $y$ to $v$.
+
+In the following section it suffices to think of resources as heap fragments.
+Later on, we will see much more sophisticated notions of resource and
+much more refined notions of ownership, including shared ownership,
+than that captured by simple points-to predicate.
+When $r$ is a resource described by $P$, we also say that $r$
+\emph{satisfies} $P$ or that $r$ \emph{is in} $P$. 
+
+\paragraph{Entailment relation}
+Entailment rules are often presented using a sequence of formulas together with a number of structural rules, which manipulate such sequences of assumptions.
+Here instead, the assumption of the entailment rules consists of only a single formula, and the structural rules are replaced by appropriate uses of transitivity of entailment together with properties of conjunction and separating conjunction, such as associativity, commutativity, and weakening.
+We have chosen this single-assumption style of presentation because otherwise we would have needed two ways of extending the sequence of formulas, one corresponding to ordinary conjunction and one corresponding to separating conjunction.
+The intuition reading of an entailment $P\proves Q$ is that, for all
+resources $r$, if $r$ is in $P$, then $r$ is also in $Q$. 
+
+\subsection{Rules for separating conjunction and magic wand}
+
+We now explain the logical entailments for separating conjunction and the magic wand based on the resource reading of propositions.
+First recall that we read the proposition $P \ast Q$ as containing those resources $r$ which can be split into two resources $r_1$ and $r_2$, with $r_1$ satisfying $P$ and $r_2$ satisfying $Q$.
+What it means to split a resource is dependent on the particular notion of a resource.
+For example, if the resources are heap fragments then splitting means splitting the heap: some locations go to one subheap, the others to the other.
+
+\paragraph{Weakening}
+The rule
+\begin{mathpar}
+  \logicstarweakrule[-inline]
+\end{mathpar}
+states that we can forget about resources.
+This makes Iris an \emph{affine} separation logic.\footnote{Sometimes called intuitionistic separation logic, but that terminology is ambiguous since it can also refer to the absence of the law of excluded middle or other classical axioms.}
+With the resource reading of propositions this rule restricts the kind of sets that can be allowed as sets of resources.
+
+For instance, if resources are heaps then the points-to predicate $x \pointsto v$ contains those heaps which map $x$ to $v$, but other locations can contain values as well.
+Then, for instance, the rule
+\[x\pointsto u \ast y \pointsto v \proves x\pointsto u\] is clear:
+On the left-hand side we have heaps which map the location $x$ to $u$ and the location $y$ to $v$.
+Any such heap in particular maps $x$ to $u$, so is in the set of resources described by the right-hand side.
+
+The associativity and commutativity rules 
+\begin{mathpar}
+  \logicstarassocrule[-inline]
+  \and
+  \logicstarcommrule[-inline]
+\end{mathpar}
+are basic structural rules. The symbol $\provesIff$ is 
+used to indicate that the rule can be used in both directions (so that
+we do not have to write two separate rules for associativity). 
+The above rules hold because ``to separate'' is a commutative and associative operation.
+
+\paragraph{Separating conjunction introduction}
+The introduction rule
+\begin{mathpar}
+  \logicstarintrorule[-inline]
+\end{mathpar}
+states that to prove a separating conjunction $Q_1 \ast Q_2$ we
+need to split the assumptions as well and decide which ones to use to
+prove $Q_1$ and which ones to use to prove $Q_2$.
+Compared to the introduction rule for ordinary conjunction ($\wedge$I), this splitting of assumptions restricts the basic structural properties of $\ast$.
+For instance, $P \proves P \ast P$ is not provable in general.
+However, this ``limitation'' allows us to state additional properties in combination with primitive resource assertions.
+For instance, if resources are heaps then we have the following basic property of the points-to predicate
+\begin{align*}
+  x \pointsto v \ast x \pointsto u \proves \FALSE.
+\end{align*}
+Note that if we used ordinary conjunction in the above axiom, then we would be able to derive $\lnot (x \pointsto v)$ for all $x$ and $v$, making the points-to predicate useless.
+
+\paragraph{Magic wand introduction and elimination}
+\begin{mathpar}
+  \logicwandintrorule[-inline]
+  \and
+  \logicwandelimrule[-inline]
+\end{mathpar}
+The magic wand $P \wand Q$ is akin to the difference of resources in $Q$ and those in $P$: it is the set of all those resources which when combined with any resource in $P$ are in $Q$.
+With this intuition the introduction rule should be intuitively clear.
+
+The elimination rule is similar to the elimination rule for
+implication ($\Ra$E), except that we need to split the assumptions and decide which ones to use to prove the magic wand and which ones to use to prove the premise of the magic wand.
+
+\begin{figure}[htbp]
+  \centering
+\paragraph{We have the usual $\eta$ and $\beta$ laws for projections, $\lambda$ and $\mu$.}\leavevmode
+\begin{mathparpagebreakable}
+  \etaunitrule
+  \and
+  \lambdabetarule
+  \and
+  \lambdaetarule
+  \and
+  \pibetarule
+  \and
+  \pietarule
+  \and
+  \inlbetarule
+   \and
+  \inrbetarule
+  \and
+  \caseetarule
+\end{mathparpagebreakable}
+  
+\paragraph{Laws of intuitionistic higher-order logic with equality.}
+Standard rules.
+
+\begin{mathparpagebreakable}
+\logicwtrule
+\and
+\logicetrule
+\and
+\logicctrule
+\and
+\logicsubstrule
+\end{mathparpagebreakable}
+\begin{mathparpagebreakable}
+\logicasmrule
+\and
+\logictransrule
+\and
+\logiceqrule
+\and
+\logiceqreflrule
+\and
+\logiceqsymmrule
+\and
+\logiceqtransrule
+\and
+\logicbotelimrule
+\and
+\logictopintrorule
+\and
+\logicandintrorule
+\and
+\logicandelimleftrule
+\and
+\logicandelimrightrule
+\and
+\logicorintroleftrule
+\and
+\logicorintrorightrule
+\and
+\logicorelimrule
+\and
+\logicimplintrorule
+\and
+\logicimplelimrule
+\and
+\logicforallintrorule
+\and
+\logicforallelimrule
+\and
+\logicexistsintrorule
+\and
+\logicexistselimrule
+\end{mathparpagebreakable}
+
+\paragraph{Laws of (affine) bunched implications.}
+
+\begin{mathpar}
+  \logicstarweakrule
+  \and
+  \logicstarassocrule
+  \and
+  \logicstarcommrule
+  \and
+  \logicstarintrorule
+  \and
+  \logicwandintrorule
+  \and
+  \logicwandelimrule
+\end{mathpar}
+
+\caption{Logical entailment}
+\label{fig:logic-entailment}
+\end{figure}
+
+\begin{figure}[htbp]
+  \centering
+  \begin{mathpar}
+    \logicwandelimaltrule
+    \and
+    \logicstarorcommrule
+    \and
+    \logicstarexistscommrule
+    \and
+    \logicandexistscommrule
+  \end{mathpar}
+  \caption{Derivable rules for interaction of connectives.}
+  \label{fig:laws-interaction-of-connectives}
+\end{figure}
+
+\paragraph*{Example derivation of a derivable rule}
+
+We show one derivation of a derivable rule here to illustrate how the rules for separating conjunction and magic wand are used, and how these connectives interact.
+We leave the others as exercise for the reader.
+\begin{example}
+  We show
+  \begin{mathpar}
+    \logicstarorcommrule[-inline]
+  \end{mathpar}
+  The direction from right to left is immediate since we have $P \ast Q \proves P \ast (Q \lor R)$ and $P \ast R \proves P \ast (Q \lor R)$ by monotonicity of $\ast$ and $\lor$-introduction.
+
+  The direction from left to right relies on the existence of the wand.\footnote{
+  Indeed, for those familiar with adjoint functors, it is a consequence of the general categorical fact that left adjoints preserve colimits.}
+
+  Consider the following proof tree (where we omit use of structural rules such as commutativity of $\ast$)
+  \begin{mathpar}
+    \infer{
+      \infer
+      {\infer
+        {\infer
+          {P \ast Q \proves P \ast Q}
+          {P \ast Q \proves P \ast Q \lor P \ast R}}
+        {Q \proves P \wand \left(P \ast Q \lor P \ast R\right)}
+        \and
+        \infer
+        {\infer
+          {P \ast R \proves P \ast R}
+          {P \ast R \proves P \ast Q \lor P \ast R}}
+        {R \proves P \wand \left(P \ast Q \lor P \ast R\right)}}
+      {Q \lor R \proves P \wand \left(P \ast Q \lor P \ast R\right)}
+    }
+    {P \ast (Q \lor R) \proves P \ast Q \lor P \ast R}.
+  \end{mathpar}
+  Notice we made essential use of the following two rules
+  \begin{mathpar}
+    \logicwandintrorule[-example]
+    \and
+    \logicwandelimaltrule[-example]
+  \end{mathpar}
+  The first is the introduction rule for $\wand$, and the second one is easily derivable.
+  We make use of the $\wand$ to ``move'' the part of the context into the conclusion.
+  This allows us to use the elimination rule for disjunction.
+\end{example}
+
+The other rules are derivable in an analogous way.
+\begin{exercise}
+  Following the example above derive the following two rules: 
+  \begin{mathpar}
+    \logicstarexistscommrule[-inline]
+    \and
+    \logicandexistscommrule[-inline]
+  \end{mathpar}
+\end{exercise}
+
+
+\subsection{Basic mathematical constructions in Iris}
+\label{sec:basic-constructions-in-iris}
+
+Reasoning about programs involves translating effectful behaviour into mathematical specifications, \eg{} a program manipulating linked lists will be specified by using operations on mathematical sequences.
+For this reason we need to define and reason about such mathematical objects in the logic.
+For the purposes of these lecture notes we will assume that we can define and reason about such objects as in ordinary mathematics.
+This is justified since it is known that in a higher-order logic with a type of natural numbers and suitable induction and recursion principles for it, most mathematical concepts, such as lists, trees, integers, arithmetic, rational, real, and complex numbers, are definable.
+The encoding is beyond the scope of these notes, so we omit it.
+
+%%% Local Variables:
+%%% mode: latex
+%%% TeX-master: "../main.tex"
+%%% End:

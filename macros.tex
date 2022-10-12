@@ -1,0 +1,169 @@
+
+\renewcommand{\implies}{\Rightarrow}
+\newcommand{\kleeneeq}{\ensuremath{\simeq}}
+\newcommand{\partfun}{\ensuremath{\rightharpoonup}}
+\newcommand{\finparmap}{\overset{\text{fin}}{\rightharpoonup}}
+\newcommand{\id}[1]{\ensuremath{\text{id}_{#1}}}
+\newcommand{\NN}{\ensuremath{\mathbb{N}}}
+\newcommand{\QQ}{\ensuremath{\mathbb{Q}}}
+\newcommand{\RR}{\ensuremath{\mathbb{R}}}
+\newcommand{\HH}{\ensuremath{\mathbb{H}}}
+\newcommand{\seqn}[1]{\ensuremath{\left(#1\right)_{n=0}^{\infty}}}
+\newcommand{\seqns}[1]{\ensuremath{\left\{#1\right\}_{n=0}^{\infty}}}
+\newcommand{\sequen}[3]{\ensuremath{{#1 \isetsep #2 \vdash #3}}}
+\newcommand{\hastype}[3]{\ensuremath{{#1 \vdash #2 : #3}}}
+\newcommand{\closure}[1]{\ensuremath{\text{Cl}\left(#1\right)}}
+
+\newcommand{\timelessjudg}[1]{\proves #1\ \textlog{timeless}}
+
+% semantics
+\newcommand{\den}[1]{\ensuremath{\left\llbracket #1 \right\rrbracket}}
+\newcommand{\nequal}[1]{\ensuremath{\overset{#1}{=}}}
+\newcommand{\cut}[2]{\ensuremath{\left\lfloor #2 \right\rfloor_{#1}}}
+
+\renewcommand{\phi}{\varphi}
+\renewcommand{\theta}{\vartheta}
+\newcommand{\eps}{\varepsilon}
+\renewcommand{\epsilon}{\varepsilon}
+
+\renewcommand{\hom}[3]{\ensuremath{\text{Hom}_{#1}\left(#2,#3\right)}}
+\newcommand{\iso}{\cong}
+\newcommand{\riso}{\overset{\approx}{\rightarrow}}
+
+\newenvironment{diagram}{\begin{tikzcd}[row sep=1.5cm,column sep=1.5cm]}{\end{tikzcd}}
+\newenvironment{largediagram}{\begin{tikzcd}[row sep=2.6cm,column sep=2.6cm]}{\end{tikzcd}}
+\newenvironment{smalldiagram}{\begin{tikzcd}[row sep=1cm,column sep=1cm]}{\end{tikzcd}}
+
+% various categories
+\newcommand{\CAT}{\ensuremath{\mathbf{Cat}}}
+\newcommand{\sets}{\ensuremath{\mathbf{Set}}}
+\newcommand{\heyt}{\ensuremath{\mathbf{Heyt}}}
+\newcommand{\PSh}[1]{\ensuremath{\text{PSh}\left(#1\right)}}
+\newcommand{\subobj}[1]{\ensuremath{\mathbf{Sub}\left(#1\right)}}
+\newcommand{\subobjf}[2]{\ensuremath{\mathbf{Sub}_{#1}\left(#2\right)}}
+
+\newcommand{\BB}{\ensuremath{\mathbb{B}}}
+\newcommand{\Cc}{\ensuremath{\mathbf{C}}}
+\newcommand{\El}{\ensuremath{\mathcal{E}}}
+\newcommand{\Sl}{\ensuremath{\mathcal{S}}}
+\newcommand{\Ul}{\ensuremath{\mathcal{U}}}
+\newcommand{\Dl}{\ensuremath{\mathcal{D}}}
+\newcommand{\Fl}{\ensuremath{\mathcal{F}}}
+\newcommand{\Pl}{\ensuremath{\mathcal{P}}}
+\newcommand{\Tl}{\ensuremath{\mathcal{T}}}
+\newcommand{\CC}{\ensuremath{\mathbb{C}}}
+\newcommand{\KK}{\ensuremath{\mathbb{K}}}
+\newcommand{\PP}{\ensuremath{\mathbb{P}}}
+\newcommand{\VV}{\ensuremath{\mathbb{V}}}
+\newcommand{\UU}{\ensuremath{\mathbb{U}}}
+\newcommand{\DD}{\ensuremath{\mathbb{D}}}
+\newcommand{\Ml}{\ensuremath{\mathcal{M}}}
+\newcommand{\Vl}{\ensuremath{\mathcal{V}}}
+\newcommand{\Il}{\ensuremath{\mathcal{I}}}
+\newcommand{\Cl}{\ensuremath{\mathcal{C}}}
+\newcommand{\Bl}{\ensuremath{\mathcal{B}}}
+\newcommand{\Al}{\ensuremath{\mathcal{A}}}
+\newcommand{\Gl}{\ensuremath{\mathcal{G}}}
+\newcommand{\Nl}{\ensuremath{\mathcal{N}}}
+\newcommand{\AAA}{\ensuremath{\mathbb{A}}}
+\newcommand{\EE}{\ensuremath{\mathbb{E}}}
+
+% separators
+\newcommand{\isetsep}{\;\ifnum\currentgrouptype=16 \middle\fi|\;}
+
+% other notations
+\newcommand{\powerset}[1]{\ensuremath{\mathcal{P}\left(#1\right)}}
+\newcommand{\upred}[1]{\ensuremath{\mathbf{UPred}\left(#1\right)}}
+\newcommand{\powup}[1]{\ensuremath{\mathcal{P}^{\uparrow}\left(#1\right)}}
+\newcommand{\powdown}[1]{\ensuremath{\mathcal{P}^{\downarrow}\left(#1\right)}}
+\newcommand{\restr}[2]{\ensuremath{\mathbf{r}_{#2}^{#1}}}
+\newcommand{\reindex}[1]{\ensuremath{#1^*}}
+\newcommand{\limit}{\varprojlim}
+\newcommand{\colimit}{\varinjlim}
+\newcommand{\blackbox}{\blacksquare}
+\newcommand{\blackdiamond}{\blacklozenge}
+
+% text macros
+\newcommand{\ie}{\emph{i.e.,}}
+\newcommand{\eg}{\emph{e.g.,}}
+\newcommand{\etc}{\emph{etc.}}
+
+
+% programming language
+\newcommand{\proglang}{$\lambda_{\mathrm{ref},\mathrm{conc}}$}
+% basic steps of the operational semantics
+\newcommand{\stepstopure}{\overset{\mathrm{pure}}{\rightsquigarrow}}
+\newcommand{\stepsto}{\rightsquigarrow}
+% One-step reduction of thread pools (configurations)
+\newcommand{\cstepsto}{\rightarrow}
+
+\newcommand{\Heap}{\textdom{Heap}}
+\newcommand{\ECtx}{\textdom{ECtx}}
+\newcommand{\TPool}{\textdom{TPool}}
+\newcommand{\Config}{\textdom{Config}}
+
+\newcommand{\inl}{\operatorname{inl}}
+\newcommand{\inr}{\operatorname{inr}}
+\newcommand{\case}[5]{\operatorname{case}(#1,#2.#3,#4.#5)}
+
+% parallel composition operator
+\newcommand{\parcomp}{\ensuremath{\mathbin{||}}}
+
+\newcommand{\freevars}[1]{\ensuremath{\text{FV}\left(#1\right)}}
+
+\newcommand{\Iris}{Iris}
+\newcommand{\Coq}{Coq}
+
+%% Macros for constructing iterated inference rules with similar labels
+% Constructs a rule with name #2, label #3 (with postfix #1; default empty),
+% hypotheses #4 and conclusion #5
+% ex: \rulegenhref[-app]{$\ast$-weak}{star-weak}{ }{P_1 \ast P_2 \proves P_1}
+\newcommand{\rulegenhref}[5][]{\inferhref{#2}{#3#1}{#4}{#5}}
+% Variant for constructing bi-inference rules
+\newcommand{\rulegenhrefb}[5][]{\inferhrefB{#2}{#3#1}{#4}{#5}}
+% Variant where name and label coincide
+\newcommand{\rulegen}[4][]{\rulegenhref[#1]{#2}{#2}{#3}{#4}}
+% Variant of bi-inference where name and label coincide
+\newcommand{\rulegenb}[4][]{\rulegenhrefb[#1]{#2}{#2}{#3}{#4}}
+
+% Hoare post condition ignore-arg blank (_.)
+\newcommand{\ignarg}{\_\,.\,}
+
+%% TODO: Upstream these in the iris.sty file
+\newcommand{\pointsto}{\mapsto}
+\newcommand{\persistently}{\always}
+
+\newcommand{\option}[1]{\maybe{#1}}
+\newcommand{\Some}{\operatorname{Some}}
+\newcommand{\None}{\operatorname{None}}
+
+% types
+\newcommand{\tvar}{X}
+\newcommand{\tvarB}{Y}
+\newcommand{\TVar}{\textdom{Tvar}}
+
+\newcommand{\typ}{\tau}
+\newcommand{\typB}{\rho}
+\newcommand{\Tunit}{1}
+\newcommand{\Tbool}{\mathbb{B}}
+\newcommand{\Tnat}{\mathbb{N}}
+\newcommand{\Tarr}{\ra}
+\newcommand{\TLam}{\Lambda\spac}
+\def\Tall #1.{\forall #1.\spac}%
+\def\Tmu #1.{\mu #1.\spac}%
+\def\Tref(#1){\textlang{ref}(#1)}
+
+\newcommand{\Tenv}{\Xi}
+\newcommand{\env}{\Gamma}
+\newcommand{\typed}[4]{#1 ~|~ #2 \vdash #3 : #4}
+\newcommand{\semtyped}[4]{#1 ~|~ #2 \vDash #3 : #4}
+
+% logical relations
+\newcommand{\semenv}{\Delta}
+
+\renewcommand{\Prop}{\mProp}
+
+%%% Local Variables:
+%%% mode: latex
+%%% TeX-master: "main"
+%%% End:

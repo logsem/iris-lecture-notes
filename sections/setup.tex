@@ -1,0 +1,206 @@
+\section{Programming Language}
+\label{sec:setup}
+
+A \emph{program} logic is used to reason about \emph{programs}, that is, to specify their behaviour.
+The precise rules of the logic depend on the constructs present in the
+programming language.
+Iris is really a framework, which can be instantiated to a range of
+different programming languages, but in order to learn about Iris,
+it is useful first to get some experience with one particular choice of
+programming language.
+Thus in this section we fix a concrete programming language, which we will use throughout the notes.
+Our language of choice, denoted  \proglang,
+is an untyped higher-order ML-like language with general references and
+concurrency.
+Concurrency is supported via a primitive, $\Fork{e}$, for forking a
+new thread to compute $e$, and
+via a primitive compare and set, $\CAS$, operation.
+This is the only synchronization primitive in the language.
+Other synchronization constructs, such as locks, semaphores, etc., can be defined in the language, and indeed we implement and give specifications to two different kinds of locks.
+The syntax and the operational semantics is shown in
+Figure~\ref{fig:opsem}.
+
+\paragraph*{Syntax sugar}
+In addition to the given constructs we will use additional syntax sugar when writing examples.
+We will write $\lambda x . e$ for the term $\Rec{f} x = e$ where $f$ is some fresh variable not appearing in $e$.
+Thus $\lambda x . e$ is a non-recursive function with argument $x$ and body $e$.
+We will also write $\Let x = e_1 in e_2$ for the term $(\lambda x . e_2) e_1$.
+This is the standard let expression, whose operational meaning (see the operational semantics below) is to evaluate the term $e_1$ to a value $v$, and then evaluate $e_2[v/x]$, \ie{} the term $e_2$ with the value $v$ substituted for the variable $x$.
+Referring to function defintiions can be quite verbose, \eg\
+$\langkw{loop} \mdef \Rec \textlang{loop} () = ();\ \textlang{loop}\ ()$.
+As such, we often collapse the outer-most binding with the function binding,
+and simply write $\langkw{loop}\ () = ();\ \langkw{loop}\ ()$.
+
+\newcommand{\opsem}{
+\textbf{Syntax}
+\begin{displaymath}
+  \begin{array}{lrcl}
+&  x, y, f & \in{} & \textdom{Var} \\
+%
+& \loc & \in{} & \Loc \\
+%
+& n & \in{} & \integer \\
+%
+& \binop & \bnfdef{}& \Plus \ALT \Minus \ALT \Mult \ALT \Eq \ALT \Lt \ALT   \cdots\\
+%
+\Val\quad
+& \val & \bnfdef{}&
+ \TT
+ \ALT \True
+ \ALT \False
+ \ALT n
+ \ALT \loc
+ \ALT (\val, \val)
+ \ALT \Inj{1} \val
+ \ALT \Inj{2} \val
+ \ALT \langkw{rec}\spac f\ (\var) \mathrel{\ldef} \expr
+ %% \ALT \Rec f \var = \expr         This gives an errors for some reason
+ \\
+\Expr \quad
+& \expr & \bnfdef{} &
+ \var
+ \ALT n
+ \ALT \expr \binop \expr 
+ \ALT \TT
+ \ALT \True
+ \ALT \False
+ \ALT \If \expr then \expr \Else \expr
+ \ALT \loc \\ &&
+ \ALT & (\expr, \expr)
+ \ALT \Proj{1} \expr
+ \ALT \Proj{2} \expr
+ \ALT \Inj{1} \expr
+ \ALT \Inj{2} \expr
+ \ALT \Match{\expr}with{\Inj{1}x}=>{\expr}|{\Inj{2}y}=>{\expr}end \\&&
+ \ALT & \langkw{rec}\spac f\ (\var) \mathrel{\ldef} \expr
+ % \ALT \Rec f \var = \expr         This gives an errors for some reason
+ \ALT \expr~\expr \\&&
+ \ALT & \Ref(\expr)
+ \ALT \deref \expr
+ \ALT \expr \gets \expr
+ \ALT \CAS(\expr,\expr,\expr)
+ \ALT \Fork{\expr}\\
+%
+\ECtx\quad
+& E & \bnfdef{}& 
+ - 
+ \ALT E \binop e 
+ \ALT v \binop E 
+ \ALT \If{E}then{e}\Else{e}
+ \ALT (E,e) 
+ \ALT (v,E)
+ \ALT \Proj{1}{E}
+ \ALT \Proj{2}{E}
+ \ALT \Inj{1}{E} 
+ \ALT \Inj{2}{E} 
+ \\ &&
+ \ALT & \Match{E}with{\Inj{1}x}=>{\expr}|{\Inj{2}y}=>{\expr}end 
+ \ALT E\,\expr 
+ \ALT v\,E
+ \ALT \Ref(E) 
+ \ALT \deref E 
+ \ALT E \gets \expr 
+ \ALT v \gets E\\  &&
+ \ALT & \CAS(E,\expr,\expr') 
+ \ALT \CAS(v,E,\expr) 
+ \ALT \CAS(v,v',E) \\
+%
+  \Heap \quad  & h  & \in{} & \Loc\fpfn\Val \\
+  \TPool \quad  & \El & \in{} & \nat\fpfn\Expr \\
+  \Config \quad & \varsigma & \bnfdef{} & (h,\El) \\
+\end{array}
+\end{displaymath}
+\textbf{Pure reduction}
+\begin{align*}
+  v \binop v' & \stepstopure v'' & & \text{if $v''= v \binop v'$} \\
+  \If{\True}then{e_1}\Else{e_2} &\stepstopure e_1\\
+  \If{\False}then{e_1}\Else{e_2} &\stepstopure e_2\\
+  \Proj{i}(v_1,v_2) &\stepstopure v_i\\
+  \Match{\Inj{i}v}with{\Inj{1}x_1}=>{e_1}|{\Inj{2}x_2}=>{e_2}end &\stepstopure e_i[v/x_i]\\
+  (\Rec{f} x = e)\, v &\stepstopure e[(\Rec{f} x = e) / f, v / x]
+\end{align*}
+\textbf{Per-thread one-step reduction}
+\begin{align*}
+  (h,e) & \stepsto (h,e')
+  &&\text{if $e\stepstopure e'$} \\
+  (h, \Ref(v)) &\stepsto (h[\ell \mapsto v], \ell) 
+  & &\text{if $\ell \not \in \dom(h)$}\\
+  (h, \deref \ell) &\stepsto (h, h(\ell)) 
+    & &\text{if $\ell \in \dom(h)$}
+\\
+  (h, \ell \gets v) &\stepsto \left(h[\ell \mapsto v], \TT\right) 
+    & &\text{if $\ell\in\dom(h)$}
+\\
+  (h,\CAS(\ell,v_1,v_2)) & \stepsto \left(h[\ell\mapsto  v_2],\True\right)
+ && \text{if $h(\ell) = v_1$} \\
+(h,\CAS(\ell,v_1,v_2)) & \stepsto \left(h,\False\right)
+ &&  \text{if $h(\ell) \neq v_1$}
+\end{align*}
+\textbf{Configuration reduction}
+\begin{mathpar}
+  \infer{(h, e) \stepsto (h', e')}
+  {(h, \El[i\mapsto E[e]]) \cstepsto (h', \El[i \mapsto E[e']])}
+  \and
+  \infer{j\notin \dom(\El)\cup\{i\} }
+  {(h, \El[i\mapsto E[\Fork{e}]]) \cstepsto (h, \El[i \mapsto
+    E[()][j\mapsto e]])}
+\end{mathpar}
+}
+
+%
+\begin{figure}[htbp]
+  \opsem
+  \caption{Syntax and Operational Semantics of \proglang.}
+  \label{fig:opsem}
+\end{figure}
+
+\paragraph*{Operational semantics}
+The operational semantics is defined by means of pure reductions,
+one-step reductions involving the heap, and general reductions 
+among configurations.  
+A configuation consists of a heap and a thread
+pool, and a thread pool is a mapping from thread identifiers (natural
+numbers) to expressions, i.e., a finite set of named threads.
+Note that reduction of configuations is
+nondeterministic: we may choose to reduce in any thread
+in the thread pool.
+This reflects that we are modelling a kind of preemptive concurrent system.
+Any thread can be suspended at any time while some other thread gets to run.
+Further note that reduction of a $\Fork{e}$ expression in thread $i$ 
+proceeds by creating a new thread, with thread identifier $j$, whose initial expression is $e$,
+and that the result of evaluation $\Fork{e}$ is the unit value $()$.
+Evaluation contexts are used to specify the evaluation strategy, that is,
+where the next reduction in a
+thread may take place.  We use a call-by-value, left-to-right,
+evaluation strategy.
+Left-to-right refers to the evaluation of function applications, pairs, and binary operations, assignment, and compare and set $\CAS$.
+For example, the pair $(e_1,e_2)$ is evaluated by first evaluating $e_1$ (the \emph{left}most term), and then $e_2$.
+We finally remark on the compare and set  $\CAS$ primitive: in 
+a heap $h$, compare and set $\CAS(\ell,v,v')$ \emph{atomically},
+that is, \emph{in one reduction step}, looks up the value of $\ell$ in
+$h$, compares it to $v$, and if it equals $v$, updates $h(\ell)$ to
+contain $v'$.
+(On real machines, $\CAS$ may only be used to compare values that fit
+in a machine word, such as pointers and integers -- for simplicity, we
+do not formalize such a restriction here; see~\cite{logrel-fcd} for
+an example of how it may be done.)
+
+Let us illustrate an execution of a simple concurrent program.
+The program allocates a new location with initial value $0$ and creates a new thread which updates the location to $3$ and terminates.
+The main, \ie{} original, thread waits until the location has been changed from $0$ at which point it reads it and adds $1$ to it.
+The program is written as follows.
+\begin{align*}
+  &\Let x = \Ref(0) in\\
+  &\Let y = \Fork{\CAS(x,0,3)} in\\
+  &(\Rec{f} {} = \If \deref x = 0 then f \TT \Else x \gets \deref{x} + 1) \TT
+\end{align*}
+Let us call it $e$.
+\begin{exercise}
+  Come up with at least two different executions of this program.
+\end{exercise}
+
+
+%%% Local Variables:
+%%% mode: latex
+%%% TeX-master: "../main.tex"
+%%% End:

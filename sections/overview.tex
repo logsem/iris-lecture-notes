@@ -1,0 +1,342 @@
+\newcommand{\appsuffix}{-app}
+
+\section{Overview}
+\label{app:overview}
+
+This appendix contains an overview of the operational semantics, typing rules, and
+logical rules (and derivations thereof) presented throughout the lecture notes.
+
+The appendix subsections are denoted with the sections of the lecture notes that they cover.
+When doing exercises you should only use the rules corresponding to the current section and
+sections before it.
+Additionally, make sure to only use rules that are marked as \emph{derived} if you have
+already carried out the example/exercise to derive them.
+
+\subsection{Operational Semantics (\Cref{sec:setup})}
+%% Figure 1: Operational Semantics
+
+\opsem
+
+\subsection{Typing Rules (\Cref{sec:sep-logic})}
+%% Figure 2: Typing rules
+
+%% NB: In an environment as macro contains \centering
+{ \typingrules }
+
+\subsection{Separation Logic Rules (\Cref{sec:sep-logic})}
+%% Figure 3: Basic sep. logic rules
+
+{
+\centering
+
+\textbf{We have the usual $\eta$ and $\beta$ laws for projections, $\lambda$ and $\mu$.}\\
+
+\begin{mathparpagebreakable}
+  \etaunitrule[\appsuffix]
+  \and
+  \lambdabetarule[\appsuffix]
+  \and
+  \lambdaetarule[\appsuffix]
+  \and
+  \pibetarule[\appsuffix]
+  \and
+  \pietarule[\appsuffix]
+  \and
+  \inlbetarule[\appsuffix]
+  \and
+  \inrbetarule[\appsuffix]
+  \and
+  \caseetarule[\appsuffix]
+\end{mathparpagebreakable}
+
+\textbf{Laws of intuitionistic higher-order logic with equality.}\\
+
+\begin{mathparpagebreakable}
+\logicwtrule[\appsuffix]
+\and
+\logicetrule[\appsuffix]
+\and
+\logicctrule[\appsuffix]
+\and
+\logicsubstrule[\appsuffix]
+\end{mathparpagebreakable}
+\begin{mathparpagebreakable}
+\logicasmrule[\appsuffix]
+\and
+\logictransrule[\appsuffix]
+\and
+\logiceqrule[\appsuffix]
+\and
+\logiceqreflrule[\appsuffix]
+\and
+\logiceqsymmrule[\appsuffix]
+\and
+\logiceqtransrule[\appsuffix]
+\and
+\logicbotelimrule[\appsuffix]
+\and
+\logictopintrorule[\appsuffix]
+\and
+\logicandintrorule[\appsuffix]
+\and
+\logicandelimleftrule[\appsuffix]
+\and
+\logicandelimrightrule[\appsuffix]
+\and
+\logicorintroleftrule[\appsuffix]
+\and
+\logicorintrorightrule[\appsuffix]
+\and
+\logicorelimrule[\appsuffix]
+\and
+\logicimplintrorule[\appsuffix]
+\and
+\logicimplelimrule[\appsuffix]
+\and
+\logicforallintrorule[\appsuffix]
+\and
+\logicforallelimrule[\appsuffix]
+\and
+\logicexistsintrorule[\appsuffix]
+\and
+\logicexistselimrule[\appsuffix]
+\end{mathparpagebreakable}
+
+\textbf{Laws of (affine) bunched implications.}\\
+
+\begin{mathparpagebreakable}
+  \logicstarweakrule[\appsuffix]
+  \and
+  \logicstarassocrule[\appsuffix]
+  \and
+  \logicstarcommrule[\appsuffix]
+  \and
+  \logicstarintrorule[\appsuffix]
+  \and
+  \logicwandintrorule[\appsuffix]
+  \and
+  \logicwandelimrule[\appsuffix]
+\end{mathparpagebreakable}
+
+%% Figure 4: Derivable sep. logic rules
+
+\textbf{Derived separation logic rules.}
+
+\begin{mathpar}
+  \logicwandelimaltrule[\appsuffix]
+  \and
+  \logicstarorcommrule[\appsuffix]
+  \and
+  \logicstarexistscommrule[\appsuffix]
+  \and
+  \logicandexistscommrule[\appsuffix]
+\end{mathpar}
+}
+
+%\newpage
+
+\subsection{Program Logic Rules (\Cref{sec:basic-separation-logic})}
+%% Figure 5: Rules for Hoare triples
+
+\sepfigcontent[\appsuffix]
+
+\begin{mathparpagebreakable}
+\textbf{Derived rules for derived constructs of the language.}\\
+\htlettemp[\appsuffix]
+\and
+\htletdettemp[\appsuffix]
+\and
+\htseqtemp[\appsuffix]
+\and
+\htbeta[\appsuffix]
+%% Include?:
+% - Ht-pre-eq
+% - Ht-bind-det
+\end{mathparpagebreakable}
+
+%\newpage
+
+\subsection{Rules for the Later Modality}
+%% Figure 6: Rules for later modality
+
+\begin{mathpar}
+  \latermonorule[\appsuffix]
+  \and
+  \laterweakrule[\appsuffix]
+  \and
+  \lobrule[\appsuffix]
+  \and
+  \laterexistsrule[\appsuffix]
+  \and
+  \existslaterrule[\appsuffix]
+  \and
+  \laterconjrule[\appsuffix]
+  \and
+  \laterdisjrule[\appsuffix]
+  \and
+  \laterforallrule[\appsuffix]
+  \and
+  \laterseprule[\appsuffix]
+\end{mathpar}
+
+\textbf{Hoare Triple rules that strip laters.}
+
+\begin{mathpar}
+  \htbetalater[\appsuffix]
+  \and
+  \htloadlaterrule[\appsuffix]
+  \and
+  \htstorelaterrule[\appsuffix]
+  \and
+  \htreclaterrule[\appsuffix]
+  \and
+  \htmatchlaterrule[\appsuffix]
+\end{mathpar}
+
+\textbf{Derived Hoare Triple rules that strip laters.}
+
+\begin{mathpar}
+  \htletlaterrule[\appsuffix]
+  \and
+  \htletdetlaterrule[\appsuffix]
+  \and
+  \htseqlaterrule[\appsuffix]
+  \and
+  \htiflaterrule[\appsuffix]
+\end{mathpar}
+
+%$ TODO: Include rules about fixpoints? (e.g. MU-fixed}
+
+\subsection{Rules for the Persistently Modality (\Cref{sec:introducing-persistently})}
+%% Figure 7: always modality
+
+\begin{mathpar}
+  \persduprule[\appsuffix]
+  \and
+  \persseprule[\appsuffix]
+  \and
+  \persmonorule[\appsuffix]
+  \and
+  \perselimrule[\appsuffix]
+  \and
+  \persidemprule[\appsuffix]
+  \and
+  \persandrule[\appsuffix]
+  \and
+  \persorrule[\appsuffix]
+  \and
+  \perslaterrule[\appsuffix]
+  \and
+  \persforallrule[\appsuffix]
+  \and
+  \persexistsrule[\appsuffix]
+  \and
+  \perstruerule[\appsuffix]
+  \and
+  \perstermeqrule[\appsuffix]
+  \and
+  \pershtrule[\appsuffix]
+  \and
+  \htpersrule[\appsuffix]
+\end{mathpar}
+
+%% TODO: Add rules from exercise 7.2
+\textbf{Derived rules for the Persistently Modality.}
+
+\begin{mathpar}
+  \persintrorule[\appsuffix]
+  \and
+  \perssepderivedrule[\appsuffix]
+  \and
+  \htreclob[\appsuffix]
+\end{mathpar}
+
+\subsection{Rules for Invariants (\Cref{sec:invar-ghost-state})}
+%% Figure 8: Invariants
+
+\begin{mathpar}
+  \invtypingrule
+  \and
+  \invpersrule[\appsuffix]
+  \and
+  \htinvallocrule[\appsuffix]
+  \and
+  \htinvopenrule[\appsuffix]
+\end{mathpar}
+
+\textbf{Other rules related to invariants.}
+
+\begin{mathpar}
+  \htmaskweakenrule[\appsuffix]
+  \and
+  \htframeatomicrule[\appsuffix]
+\end{mathpar}
+
+\textbf{Derived rules related to invariants.}
+
+\begin{mathpar}
+  \htlaterfalserule[\appsuffix]
+  \and
+  \htinvallocpostrule[\appsuffix]
+\end{mathpar}
+
+\subsection{Rules for Ghost State (\Cref{sec:invar-ghost-state})}
+%% Figure 9: Laws of the update modality
+
+%% Rules for ghost state
+\begin{mathpar}
+  \coretypingrule
+  \and
+  \validtypingrule
+  \and
+  \owntypingrule
+\end{mathpar}
+
+\begin{mathpar}
+  \fpurule[\appsuffix]
+\end{mathpar}
+
+\begin{mathpar}
+  \ownoprule[\appsuffix]
+  \and
+  \ownvalidrule[\appsuffix]
+  \and
+  \perscorerule[\appsuffix]
+\end{mathpar}
+
+%% Rules for update modality
+
+\subsection{Rules for the Update Modality (\Cref{sec:invar-ghost-state})}
+
+\begin{mathpar}
+  \updtypingrule
+  \and
+  \updmonorule[\appsuffix]
+  \and
+  \updintrorule[\appsuffix]
+  \and
+  \updidemprule[\appsuffix]
+  \and
+  \updframerule[\appsuffix]
+  \and
+  \ghostallocrule[\appsuffix]
+  \and
+  \ghostupdaterule[\appsuffix]
+  \and
+  \htcsqvsrule[\appsuffix]
+\end{mathpar}
+
+\textbf{Derived rules for the update modality.}
+
+\begin{mathpar}
+  \updseprule[\appsuffix]
+  \and
+  \updbindrule[\appsuffix]
+\end{mathpar}
+
+%% Other things that could be added:
+% - Weakest Precondition
+% - Ghost state rules
+%   + Validity
+%   + Frame-preserving update
+% - RA instances

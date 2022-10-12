@@ -1,0 +1,443 @@
+
+\section{Modular Specifications for Concurrent Modules}
+\label{sec:modular-specs-of-concurrent-modules}
+
+In the previous sections we have seen several examples and case studies involving specifications of concurrent modules.
+In particular, in Section~\ref{sec:authoritative-ra} we presented several different specifications of a simple counter module.
+In general, it is difficult to find out what is the ``right'' specification to give to a (concurrent) module.
+Often we would like to have a specification which is sufficiently general that it can be used by many, ideally \emph{all possible}, different clients.
+In this section we give some ``methodological advice'' on how to give modular specifications for concurrent modules that are sufficiently general that they can be instantiated by many diverse clients.
+In particular, we present a new specification of the concurrent counter module, which is \emph{more modular}, in the sense that the earlier given specifications can be derived from it (\emph{without reference to the code of the counter, only using the abstract predicates}).
+Moreover, we also show how this modular specification of the counter module allows us to give a modular proof of the ticket lock, \ie\ a proof of the ticket lock which only depends on the \emph{specification} of the counter module, \emph{not} on the concrete implementation.
+We include this section for the obvious reason that modularity is a key point we have been striving for all along, but also because it gives us an additional opportunity to show how Iris's higher-order logic supports quite advanced modular specifications.
+
+The methodology we present is a \emph{higher-order approach to modular specifications of concurrent modules}.
+It stems from~\cite{hocap-conf}, which was based on~\cite{Jacobs:Piessens:2011}.
+It is closely related to the notion of logical atomicity from the TaDa logic~\cite{TaDa}.
+The examples, the concurrent counter module and the ticket lock, are from~\cite{DINSDALEYOUNG20181}, which contains a presentation and discussion of these examples using TaDa-style logical atomicity.
+This section is supposed to be an introduction to the topic of modular specifications for concurrent modules, please see the mentioned references for further discussion.
+
+
+We now outline the overall idea of the methodology; it is perhaps a little tricky to understand at first, so it may be easiest to read this description quickly at first, and then study the examples below and return to the description again.
+
+We consider concurrent modules which have some state and some methods operating on the state.
+A concrete example could be a concurrent stack module.
+To specify a concurrent module, we decide on what the mathematical model of the abstract state should be, and in particular how the model allows for sharing.
+For the concurrent stack module, a natural choice is to model the abstract state of the stack by a mathematical sequence of natural numbers (assuming that the elements of the stack are simply natural numbers). 
+We will use a ghost variable to keep track of the contents of the abstract state of the module, so for the concurrent stack we will have a ghost resource whose contents will be a mathematical sequence of numbers.
+Now consider the specification of a method. Typically, it will involve a modification of the abstract state of the module.
+For example, for the concurrent stack, a push method is supposed to change the abstract state of the module, by inserting the element being pushed into the front of the mathematical sequence modeling the abstract state of the stack.
+
+Since we are in a concurrent setting, it matters \emph{when} the state of the module changes, and when the abstract state changes, a client will typically also have to update some invariants and protocols of its own.
+However, the module, of course, cannot know how different clients wish to update their invariants when the abstract state of the module changes.
+Therefore we \emph{parameterize} the method specification by a view shift, which (1) describes how the abstract state is supposed to change and (2) describes how other invariants should be updated. 
+The idea is that, when we prove the specification of the method of the module, then we can use this view shift to update the abstract state
+of the module; typically, we will then also show that the concrete state of the module matches the new abstract state of the module.
+Thus it is the \emph{client} of the module who has to prove that the abstract state of the module can be changed as described by the view shift,
+since the client has to provide a proof of the view shift. (Perhaps it is surprising that the \emph{client} can prove that the abstract state of
+the module can be changed, but notice that the client only considers the \emph{abstract state} of the module, which is tracked using ghost state ---
+the modifications to the actual \emph{concrete state} of the module are proved to match the abstract state change when we prove the module method specification.)
+Since the module cannot know which other invariants the client has, we also parameterize the specification by predicates intended to describe those. 
+
+
+\newcommand{\wkincrC}{\operatorname{wk{\_}incr}}
+\newcommand{\Cnt}{\operatorname{Cnt}}
+
+\subsection{Modular Specification of Concurrent Counter Module}
+\label{sec:modular-conter}
+
+\paragraph{Counter Implementation}
+
+The counter implementation we will consider is the same as in Section~\ref{sec:authoritative-ra}, except we add an additional \emph{weak increment} ($\wkincrC$) method.
+Its definition is the following
+\begin{align*}
+  \wkincrC \ell = \ell \gets  1 + \deref \ell.
+\end{align*}
+The intention is that clients should only call the weak increment method when the client knows that it is safe to do so, \ie\ when the client knows that only one thread will increment the counter.
+Since the increment is not atomic 
+
+\renewcommand{\Cnt}{\operatorname{Cnt}}
+\newcommand{\abstractstatefrac}[3]{#1 \Mapsto\kern-0.5ex\tfrac{1}{#2} #3}
+\newcommand{\abstractstate}[3]{#1 \Mapsto^{#2}_{\circ} #3}
+\newcommand{\abstractstatefullfrag}[2]{#1 \Mapsto_{\circ} #2}
+\newcommand{\abstractstateauth}[2]{#1 \Mapsto_{\bullet} #2}
+\newcommand{\CntInvName}{c}
+\newcommand{\CntInv}{\operatorname{CntInv}}
+
+\paragraph{A Resource Algebra for the Abstract State of the Counter}
+
+We model the abstract state of the counter by a natural number.
+We will use a resource algebra for keeping track of the abstract state of the counter module.
+The resource algebra is the authoritative resource algebra (from Example~\ref{example:authoritative-RA}) over the product of the resource algebra of fractions (from Example~\ref{example:resource-algebra-of-fractions}) and the agreement resource algebra (from Example~\ref{example:agreement-resource-algebra}) on the set of natural numbers $\nat$ (the type of the model of the abstract state of the counter).
+The product of the two last resource algebra is not a unital resource algebra.
+In order to apply the authoritative resource algebra construction we wrap the product in the option resource algebra (from Example~\ref{example:option-resource-algebra}).
+The resulting construction is $\authm((\QQ_{01} \times \nat)_?)$.
+
+We write $\abstractstate{\gamma}{q}{m}$ for the ghost ownership assertion $\ownGhost{\gamma}{\authfrag (q,m)}$ of the fragmental element $\authfrag (q, m)$ to reflect the intuitive reading of this ghost ownership assertion as ``there is a ghost heap, which maps $\gamma$ to $m$ with fraction $q$''.
+In particular, we write $\abstractstatefrac{\gamma}{k}{m}$ when the fraction $q$ is $\frac{1}{k}$.
+In case when $q = 1$ we write $\abstractstatefullfrag{\gamma}{m}$.
+We write $\abstractstateauth{\gamma}{m}$ for the ownership assertion $\ownGhost{\gamma}{\authfull (1, m)}$ of the authoritative element $\authfull (1, m)$.
+It is a simple exercise to verify that for all $n, m$ and $p, q$ we have the following entailments.
+\begin{align}
+  \abstractstate{\gamma}{q}{m} \ast \abstractstate{\gamma}{q}{n} \proves n = m \label{eq:ra-abstract-state-eq}\\
+  \abstractstate{\gamma}{p}{m} \ast \abstractstateauth{\gamma}{n} \proves n = m \label{eq:ra-abstract-state-auth-eq}\\
+  \abstractstate{\gamma}{p}{m} \ast \abstractstate{\gamma}{q}{m} \provesIff \abstractstate{\gamma}{p+q}{m} \label{eq:ra-abstract-state-sum}  \\
+  \abstractstate{\gamma}{1}{m} \ast \abstractstateauth{\gamma}{m} \proves \pvs \abstractstate{\gamma}{1}{n} \ast \abstractstateauth{\gamma}{m} \label{eq:ra-abstract-state-upd}
+\end{align}
+The first property means that everybody in possession of the partial knowledge (fraction $q$ less than $1$) agrees on the value of the counter, the second property states that anyone in possession of the partial knowledge agrees with the authoritative part on the value of the counter, 
+ the third property states how the abstract predicate can be split, and the last property states that anybody in full possession of the fragmental state of the counter and the authoritative state of the counter can update both.
+\begin{exercise}
+  \label{ex:counter-ghost-state-1}
+  Prove the preceding properties of the assertions $\abstractstate{\gamma}{q}{m}$ and $\abstractstateauth{\gamma}{m}$.
+\end{exercise}
+
+
+\paragraph{Modular Counter Specification}
+
+In the following we assume $\mask$ is an infinite set of invariant names.
+
+The modular counter specification is as follows, we explain it below.
+In the specification for $\wkincrC$, $P$ and $Q$ range over $\Prop$, $v$ over $\Val$, $q$ over fractions $\QQ_{01}$, and $m$ over $\nat$.
+\begin{align*}
+  & \Exists \Cnt : \Val \to \textlog{GhostName} \to \textlog{InvName} \to \Prop.\\
+  & \qquad \persistently\left(\All v, \gamma, c. \Cnt(v,\gamma,c) \implies \persistently \Cnt(v,\gamma,c)\right) \\
+  & \land \quad\hoare{\TRUE}{\newC()}{v.\Exists \gamma, c.  \Cnt(v,\gamma,c) \ast \abstractstate{\gamma}{1}{0}}[\mask] \\
+  & \land \quad\All \gamma, c, P, Q, v.
+    \begin{array}[t]{l}
+    \left(\All m. (\abstractstateauth{\gamma}{m} \ast P) \vs[\mask\setminus{\{\CntInvName\}}]
+    (\abstractstateauth{\gamma}{m} \ast Q(m))\right) \implies \\
+      \hoare{\Cnt(v,\gamma, c) \ast P}{\readC(v)}{u. \Cnt(v,\gamma, c) \ast Q(u)}[\mask]
+    \end{array}\\
+  & \land \quad\All \gamma, c, P, Q, v.
+    \begin{array}[t]{l}
+    \left(\All m. (\abstractstateauth{\gamma}{m} \ast P) \vs[\mask\setminus{\{\CntInvName\}}]
+    \left(\abstractstateauth{\gamma}{(m+1)} \ast Q(m)\right)\right) \implies \\
+      \hoare{\Cnt(v,\gamma,c) \ast P}{\incrC(v)}{u. \Cnt(v,\gamma,c) \ast Q(u)}[\mask]
+    \end{array}\\
+  & \land \quad \All \gamma, c, P, Q, v, q, m.
+    \begin{array}[t]{l}
+    \left(\abstractstateauth{\gamma}{m} \ast \abstractstate{\gamma}{q}{m} \ast P \vs[\mask\setminus{\{\CntInvName\}}]
+     \abstractstateauth{\gamma}{(m+1)}  \ast Q\right) \implies \\
+      \hoare{\Cnt(v,\gamma,c) \ast \abstractstate{\gamma}{q}{m}\ast P}{\wkincrC(v)}{u. u=\TT \ast \Cnt(v,\gamma,c) \ast Q}[\mask]
+    \end{array}
+\end{align*}
+
+The idea is that the abstract predicate $\Cnt(v,\gamma,c)$ expresses that $v$ represents a counter, whose abstract state is kept in the ghost variable $\gamma$,
+and which uses invariant name $c$.
+As usual, $\Cnt(v,\gamma,c)$ is persistent so that we can share it among several threads.
+
+The postcondition of $\newC$ says that a counter is created and, moreover, that the abstract state of the counter is $0$. The client of the counter gets  ownership of the fragmental part ($\abstractstate{\gamma}{1}{0}$) of the abstract state, which means that if the client gets access to the authoritative part ($\abstractstateauth{\gamma}{0}$), which is kept by the counter module, then it can update the abstract state of the counter.
+The fragmental and authoritative parts together represent the abstract state of the counter from different angles.
+The authoritative part $\abstractstateauth{\gamma}{0}$ provides the \emph{module view} of the abstract state, and the fragmental part $\abstractstate{\gamma}{1}{0}$ provides the \emph{client view} of the abstract state.
+Those two views have to be synchronized.
+This means that the counter module cannot update the abstract state of the counter ``on its own'', just from the module view (remember that the idea of the methodology is that the module cannot know what should happen when the abstract state changes and hence it delegates updating of the abstract state to the client of the module).
+
+Now consider the specification of $\incrC$. To use this specification, the client must show the view shift
+\begin{align*}
+\All m. (\abstractstateauth{\gamma}{m} \ast P) \vs[\mask\setminus{\{\CntInvName\}}] (\abstractstateauth{\gamma}{(m+1)} \ast Q(m)),
+\end{align*}
+and then it gets the Hoare triple  $\hoare{\Cnt(v,\gamma,c) \ast P}{\incrC(v)}{u. \Cnt(v,\gamma,c) \ast Q(u)}[\mask]$.
+The view shift expresses that the $\incrC$ will increment the abstract state of the counter; 
+the predicates $P$ and $Q$ are universally quantified and can thus be instantiated by the client to coordinate updates to invariants held by the client.
+The Hoare triple expresses that one may call $\incrC$ if one has a $\Cnt(v,\gamma,c)$ resource.
+
+The specification of $\readC$ is similar to the specification of $\incrC$, except that the abstract state does not change.
+Even though the abstract state does not change, we still parameterize the specification by a view shift, because that will allow a client to
+update its own invariants appropriately when it learns about the abstract state of the counter (by instantiating $P$ and $Q$ as necessary).
+We will show examples of how this can be done below.
+
+Note that the quantification over the abstract state $m$ of the counter in the view shifts for $\incrC$ and $\readC$ captures the point that a client cannot know (if the counter is shared by different threads) what the abstract state is --- because other threads may call methods on the counter concurrently.
+
+In the specification of $\wkincrC$, the value of the counter $m$ is quantified over both the view shift and the Hoare triple.
+Moreover, to call $\wkincrC$, the client must have fragmental ownership of the abstract state of the counter (note the $\abstractstate{\gamma}{q}{m}$ in the precondition of the Hoare triple); this captures the idea that no other thread can have full ownership of the abstract state and hence cannot update the abstract state ``under our feet'', which is in accordance with the idea that a client should only call $\wkincrC$ when it knows that no other thread can modify the counter.
+In the specifications for $\incrC$ and $\readC$, the predicate $Q$ is parameterized by the abstract state of the counter (because we do not know up front what
+the abstract state is), but in the specification for $\wkincrC$, the predicate $Q$ need not be parameterized by the abstract state of the counter, since
+the client already keeps track of it ($\abstractstate{\gamma}{q}{m}$). 
+
+Finally, we comment on the mask annotation on the view shifts: since the mask is $\mask\setminus{\{\CntInvName\}}$, the client may use (open and close) all the invariants in $\mask$ when showing the view shift, except the invariant named $c$ used by the counter module.
+That is also the reason why we parameterize $\Cnt$ by $c$ (rather than hiding $c$ behind an existential, as we have done in earlier examples).
+(In Coq, we use invariant name spaces to keep tract of these invariant names, see Section~\ref{sec:invariant-namespaces}.)
+
+\paragraph{Showing that the Implementation meets the Modular Counter Specification}
+We now outline the proof that the counter implementation meets the above modular specification.
+We naturally use an invariant to share the state of the counter. The invariant connects the concrete value of the counter to the abstract state of the counter, which in this case is simply the same value as the concrete value stored in the reference of the counter module.
+\footnote{Generally, in this methodology, the abstract state is an appropriate mathematical abstraction of the contents of the module, \eg\ the abstract state for a concurrent stack module could be a mathematical sequence of values.}
+%
+\begin{align*}
+  \CntInv(v,\gamma) & = \Exists m. v\pointsto m \ast \abstractstateauth{\gamma}{m}\\
+  \Cnt(v,\gamma,c) & = \knowInv{\CntInvName}{\CntInv(v,\gamma)}
+\end{align*}
+%
+With this definition of the abstract $\Cnt$ predicate, it is not hard to show that the different methods
+meet the specifications. Here we just outline the proof for the $\incrC$ method, and leave the other (easier) ones as
+an exercise.
+
+For $\incrC$ we first assume the given view shift, and the proceed to show the Hoare triple.
+To that end, since $\incrC$ is a recursive function we proceed, as usual, by L{\"o}b induction. To dereference the reference we open the invariant and then close it again. Then we get to the $\CAS$ instruction.
+We open the invariant and thus get ownership of the authoritative part of the abstract state, \ie{} we get
+$\abstractstateauth{\gamma}{m}$ for some $m$.
+The interesting case is when it succeeds (otherwise we just end up recursing so the proof succeeds by applying the L{\"o}b induction hypothesis).
+In this case we get that the reference now points to $m+1$ (since the $\CAS$ succeeded). 
+Now we want to apply the view shift, so we instantiate it with $m$, and then we can apply it.
+This we can do since we both have $\abstractstateauth{\gamma}{m}$ and $P$ (we have $P$ from the precondition in the Hoare triple).
+By the view shift we have $\abstractstateauth{\gamma}{(m+1)}$ and $Q(m)$.
+Thus, since we now both have that the reference points to $m+1$ and we also have $\abstractstateauth{\gamma}{(m+1)}$,
+we can close the counter invariant, and thus we obtain the required postcondition.
+So, in summary, the key point to notice is that the abstract state of the counter is updated by an application
+of the view shift which the specification is parameterized by.
+
+\begin{exercise}
+  Show the specifications for $\newC$, $\readC$, and $\wkincrC$.
+\end{exercise}
+
+\subsubsection{Deriving Counter with Contributions from the Modular Counter Specification}
+\label{sec:deriving-ccounter-from-modular-conter}
+
+In this subsection we sketch how we may use the modular counter specification from above to \emph{derive} a counter-with-contributions specification from Exercise~\ref{exercise:precise-counter-specification} in Section~\ref{sec:authoritative-ra}.
+
+The idea is to proceed much as in Exercise~\ref{exercise:precise-counter-specification}, except that now we have to use the \emph{abstract state} of the counter (as a client of the modular counter specification that is all we can use!).
+Thus we let $\isCounter$ be the predicate
+\begin{align*}
+    \isCounter(\ell, n, \gamma_{1}, \gamma_{2}, c, p) =
+    \ownGhost{\gamma_{1}}{\authfrag (p, n)} \ast \Exists \iota\in\mask\setminus\{c\} . \knowInv{\iota}{\Exists m . \abstractstatefullfrag{\gamma_{2}}{m} \ast \ownGhost{\gamma_{1}}{\authfull (1, m)}}
+    \ast \Cnt(\ell,\gamma_{2},c).
+\end{align*}
+where we use the same authoritative resource algebra as we did for the verification of the counter with contributions previously.
+%
+Note the similarity to the earlier definition in Exercise~\ref{exercise:precise-counter-specification}! In the definition of $\isCounter$, the predicate
+$\Cnt(\ell,\gamma_{2},c)$ expresses that $\ell$ is a counter, whose abstract state is tracked by $\gamma_{2}$, and in the invariant we use 
+$\abstractstatefullfrag{\gamma_{2}}{m}$ to record that the abstract state of the counter is $m$ (note how this ghost state plays a role similar to
+the role played by $\ell\pointsto m$ in  Exercise~\ref{exercise:precise-counter-specification}).
+Also note that $\isCounter(\ell, n, \gamma_{1}, \gamma_{2}, c, p)$ is persistent.
+
+With this definition in place, we can prove the following specifications:
+\begin{align*}
+    &\hoare{\TRUE}{\newC \TT}{u.\Exists \gamma_{1},\gamma_{2}, c . \isCounter(u, 0, \gamma_{1}, \gamma_{2}, c, 1)}\\
+    &\All p . \All \gamma_{1},\gamma_{2}. \All c . \All v . \All n . \hoare{\isCounter(v, n, \gamma_{1}, \gamma_{2}, c, p)}{\readC v}{u.u \geq n \ast \isCounter(v, n, \gamma_{1}, \gamma_{2}, c, p)}\\
+    &\All \gamma_{1},\gamma_{2} . \All c . \All v . \All n . \hoare{\isCounter(v, n, \gamma_{1}, \gamma_{2}, c, 1)}{\readC v}{u.u = n \ast \isCounter(v, n, \gamma_{1}, \gamma_{2}, c, 1)}\\
+    &\All p . \All \gamma_{1},\gamma_{2} . \All c. \All v . \All n . \hoare{\isCounter(v, n, \gamma_{1},\gamma_{2}, c, p)}{\incrC v}{u.u = \TT \ast \isCounter(v, n+1,\gamma_{1},\gamma_{2}, c, p)}
+\end{align*}
+
+We sketch the proof for $\incrC$, and the leave the others as an exercise.
+We assume the precondition, which gives us $\Cnt(v,\gamma_{2}, c)$, as is necessary for using the modular counter specification for $\incrC$.
+We instantiate $P$ and $Q$ in the modular $\incrC$ specification by $P=\ownGhost{\gamma_{1}}{\authfrag (p, n)}$ and
+$Q=\lambda x.\ownGhost{\gamma_{1}}{\authfrag (p, n+1)}$. Now we need to show the view shift
+\begin{align*}
+  \abstractstateauth{\gamma_{2}}{m} \ast \ownGhost{\gamma_{1}}{\authfrag (p, n)}
+  \vs[\mask\setminus\{c\}]
+  \abstractstateauth{\gamma_{2}}{(m+1)} \ast \ownGhost{\gamma_{1}}{\authfrag (p, n+1)}.
+\end{align*}
+We do this by opening the invariant $\iota$, which gives us $\abstractstatefullfrag{\gamma_{2}}{k} \ast \ownGhost{\gamma_{1}}{\authfull (1, k)}$, for some $k$.
+By the properties for resource algebra for abstract state \eqref{eq:ra-abstract-state-auth-eq} we conclude that $k=m$.
+Using~\eqref{eq:ra-abstract-state-upd}, we can update the abstract state $\abstractstatefullfrag{\gamma_{2}}{k} \ast \abstractstateauth{\gamma_{2}}{k}$ to $\abstractstatefullfrag{\gamma_{2}}{k+1} \ast \abstractstateauth{\gamma_{2}}{k+1}$.
+By the properties of the authoritative resource algebra we can also update $\ownGhost{\gamma_{1}}{\authfrag (p, n)}\ast \ownGhost{\gamma_{1}}{\authfull (1, k)}$ to $\ownGhost{\gamma_{1}}{\authfrag (p, n+1)}\ast\ownGhost{\gamma_{1}}{\authfull (1, k+1)}$.
+With this we can close the $\iota$ invariant again.
+Recalling that $k=m$, the resources we have left are exactly the $\abstractstatefullfrag{\gamma_{2}}{(m+1)} \ast \ownGhost{\gamma_{1}}{\authfrag (p, n+1)}$, as required for completing the proof of the view shift.
+
+Since we have shown the view shift, we now get the Hoare triple
+\begin{align*}
+\hoare{\Cnt(v,\gamma_{2},c) \ast \ownGhost{\gamma_{1}}{\authfrag (p, n)}}{\incrC(v)}{u. u=\TT \ast \Cnt(v,\gamma_{2},c) \ast \ownGhost{\gamma_{1}}{\authfrag (p, n+1)}}  
+\end{align*}
+By the definition of $\isCounter$, we not only have $\Cnt(v,\gamma_{2},c)$, but also
+$\ownGhost{\gamma_{1}}{\authfrag (p, n)}$. Hence we conclude from the Hoare triple above that we can indeed call $\incrC(v)$ and obtain 
+$\Cnt(v,\gamma_{2},c) \ast \ownGhost{\gamma_{1}}{\authfrag (p, n+1)}$, which, together with the invariant $\iota$, suffices to conclude
+$\isCounter(v, n+1,\gamma_{1},\gamma_{2}, c, p)$, as required.
+
+
+\subsubsection{Deriving Sequential Counter from Modular Counter Specification}
+\label{sec:deriving-sequential-from-modular-conter}
+
+\newcommand{\SeqCnt}{\operatorname{SeqCnt}}
+
+Here is a specification for a counter that can be used in a sequential context only:
+\begin{align*}
+  & \Exists \SeqCnt : \Val \to \textlog{GhostName} \to \textlog{InvName} \to \nat \to \Prop.\\
+  & \qquad\All n. \hoare{\TRUE}{\newC()}{v.\Exists \gamma, c.  \SeqCnt(v,\gamma,c,0)}  \\
+  & \land \quad\All \gamma, c, v, n.
+    \begin{array}[t]{l}
+      \hoare{\SeqCnt(v,\gamma, c, n)}{\readC(v)}{u. u = n \ast \SeqCnt(v,\gamma, c, n)}
+    \end{array}\\
+  & \land \quad\All \gamma, c, v, n.
+    \begin{array}[t]{l}
+      \hoare{\SeqCnt(v,\gamma,c, n)}{\incrC(v)}{u. u = n \ast \SeqCnt(v,\gamma,c,n+1)}
+    \end{array}\\
+\end{align*}
+Since the representation predicate
+$\SeqCnt(v,\gamma,c,n)$ is \emph{not} persistent, it cannot be duplicated, which means that we can only use it
+sequentially. On the other hand, because we can only use the counter sequentially, we can track the precise
+value of the counter (not just a lower bound). 
+
+We can easily derive this specification from the modular counter specification by defining
+$\SeqCnt(v,\gamma,c,n) = \Cnt(v,\gamma,c) \ast \abstractstatefullfrag{\gamma}{n}$.
+Then, for instance, to derive the specification for $\incrC$, we let $P \eqdef \abstractstatefullfrag{\gamma}{n}$
+and $Q \eqdef \lambda n.\, \abstractstatefullfrag{\gamma}{(n+1)}$ in the modular counter specification for $\incrC$.
+Note how we track the precise value of the abstract state using $\abstractstatefullfrag{\gamma}{n}$,
+and that, indeed, with this definition, $\SeqCnt(v,\gamma,c,n)$ is not persistent.
+
+\subsection{Modular Verification of the Ticket Lock}
+\label{sec:modular-verification-of-ticket-lock}
+In this section we give a modular proof of a modular implementation of the ticket lock
+from Section~\ref{sec:case-study:ticket-lock}. Recall that the earlier verified version of the ticket
+lock was not modular in its use of counters; that is what we change now. Thus the ticket
+lock implementation we wish to verify now is:
+\begin{align*}
+    \langkw{let} \newLock () =\ &(\newC\TT, \newC\TT)\\
+    \langkw{let} \acquire l =\ &\Let n = \Proj{2} l in\\
+                             &\wait (\incrC n)\; l\\
+    \langkw{let} \wait n \; l =\ &\Let o = \readC (\Proj{1} l) in \\
+                             &\If{n = o}then{()}\Else{\wait n\; l}\\
+    \langkw{let} \release l =\ &\wkincrC (\Proj{1} l)
+\end{align*}
+Note the use of the modular counter methods, the calls to: $\newC$ in $\newLock$, $\incrC$ in $\acquire$, $\readC$ in $\wait$, and $\wkincrC$ in $\release$.
+  
+We want to give this version of the ticket lock almost the same specification as before.
+\begin{align*}
+    &\Exists \isLock : \Val \to \Prop \to \textlog{GhostName} \to \textlog{GhostName} \to \textlog{GhostName} \to \textlog{InvName} \to \textlog{InvName} \to \Prop.\nonumber\\
+    &\Exists \locked : \textlog{GhostName} \to \textlog{GhostName} \to \Prop.\nonumber\\
+    &\Exists \issued : \textlog{GhostName} \to \Val \to \Prop.\nonumber\\
+    &\quad\quad\All P, v, \gamma, \gamma_{o}, \gamma_{n}, c_{o}, c_{n}. \isLock(v, P, \gamma, \gamma_{o}, \gamma_{n}, c_{o}, c_{n}) \implies \persistently \isLock(v, P, \gamma, \gamma_{o}, \gamma_{n}, c_{o}, c_{n})\\
+      &\land\quad\All \gamma, \gamma_{o}. \locked(\gamma, \gamma_{o}) \ast \locked(\gamma, \gamma_{o}) \implies \FALSE\\
+      &\land\quad\All \gamma. \issued(\gamma,n) \ast \issued(\gamma,n) \implies \FALSE\\
+    &\land\quad\All P.\hoare{P}{\newLock ()}{v.\Exists \gamma, \gamma_{o}, \gamma_{n}, c_{o}, c_{n}.\isLock(v, P, \gamma, \gamma_{o}, \gamma_{n}, c_{o}, c_{n})}\\
+      &\land\quad\All P, v, \gamma, \gamma_{o}, \gamma_{n}, c_{o}, c_{n}, n.\hoare{\isLock(v, P, \gamma, \gamma_{o}, \gamma_{n}, c_{o}, c_{n}) \ast \issued(\gamma, n)}{\wait (n, v)}{v.P \ast \locked(\gamma, \gamma_{o})}\\
+      &\land\quad\All P, v, \gamma, \gamma_{o}, \gamma_{n}, c_{o}, c_{n}.\hoare{\isLock(v, P, \gamma, \gamma_{o}, \gamma_{n}, c_{o}, c_{n})}{\acquire (v)}{v.P \ast \locked(\gamma, \gamma_{o})}\\
+     &\land\quad\All P, v, \gamma, \gamma_{o}, \gamma_{n}, c_{o}, c_{n}.\hoare{\isLock(v, P, \gamma, \gamma_{o}, \gamma_{n}, c_{o}, c_{n}) \ast P \ast \locked(\gamma, \gamma_{o})}{\release (v)}{\_.\TRUE}
+\end{align*}
+%
+As you can see, the only change (compared to the earlier specification in Section~\ref{sec:case-study:ticket-lock}) is the additional ghost name and invariant name arguments to the abstract predicates and invariant.
+That is because we use the modular counter specification, which is also parameterized by ghost names and invariant names. 
+
+To prove that the implementation above meets the specification, we define the abstract predicates as follows:
+\begin{align*}
+  \lockInv(\gamma, \gamma_{o}, \gamma_{n}, P) & = \Exists o, n. \: \abstractstatefrac{\gamma_{o}}{2}{o} \ast \abstractstatefullfrag{\gamma_{n}}{n} \ast \ownGhost{\gamma}{\authfull (o, \{ i \mid 0 \leq i < n \})}\\
+  &\ast ((\ownGhost{\gamma}{\authfrag (o, \emptyset)} \ast \abstractstatefrac{\gamma_{o}}{2}{o} \ast P) \lor \ownGhost{\gamma}{\authfrag (\epsilon, \{o \})}).
+\end{align*}
+  
+\begin{align*}
+    \isLock(v, P, \gamma, \gamma_{o}, \gamma_{n}, c_{o}, c_{n}) =\ & \Exists \ell_{o}, \ell_{n}, \iota \in \textlog{InvName}. v = (\ell_{o}, \ell_{n}) \ast \knowInv{\iota}{\lockInv(\gamma, \gamma_{o}, \gamma_{n}, P)} \\ &\ast \Cnt (\ell_{o}, \gamma_{o}, c_{o}) \ast \Cnt (\ell_{n}, \gamma_{n}, c_{n}) \\
+    \locked(\gamma, \gamma_{o}, \gamma_{n}) =\ & \Exists o. \ownGhost{\gamma}{\authfrag (o, \emptyset)} \ast \abstractstatefrac{\gamma_{o}}{2}{o}\\   
+    \issued(\gamma, n) =\ & \ownGhost{\gamma}{\authfrag (\epsilon, \{n\})}
+\end{align*}
+Compared to the earlier non-modular proof of the ticket lock, the change is that our definitions are now given
+in terms of the abstract modular counter predicates (rather than relying on information about the actual implementation of
+counters).
+
+As in the derivation of the counter with contributions from the modular counter, we use abstract state predicates $\abstractstatefrac{\gamma_{o}}{2}{o}$ and $\abstractstatefullfrag{\gamma_{n}}{n}$ to track the values of the owner and the next counter.
+The reason for using different fractions for the owner counter and the next counter is that we want to be able to call $\wkincrC$ on the owner counter when releasing the lock and the specification of $\wkincrC$ requires some fragmental ownership of the corresponding ghost state in its precondition, and hence we split the non-authoritative ownership of $\gamma_{o}$ into two halves, one of which we keep in the ``basic'' part of the invariant and the other of which we keep in the left side of the disjunction and in the $\locked$ predicate.
+Remember how this left side corresponds to the lock not being in use at the moment, so having this ghost resource in both the invariant and the predicate makes sense, since only one of these will ever be true.
+
+\subsubsection{wait-loop}
+
+The $\wait$ method now calls read on the owner counter instead of loading its contents directly, so we need to utilise the counter module's read specification now.
+Apart from this, the proof follows the same structure as before.
+
+Recall that the intuition in the entire method is that we have a ticket with a specific number and read the owner counter until its value matches the one on our ticket.
+When these two values match, we ``hand in'' our ticket and actually acquire the lock, which means that we need to change our state.
+As long as they do not match, we start over and do not change any state.
+This intuition corresponds to the instantiation of $P$ and $Q$ in the counter module's $\readC$ specification:
+\begin{align*}
+    P = & \issued (\gamma, n)\\
+    Q = & \lambda v. (\locked (\gamma, \gamma_{o}, \gamma_{n}) \ast P \lor \issued (\gamma, n))
+\end{align*}
+Note that $Q$ is the same as the one we chose as intermediate postcondition for our bind rule in the old proof.
+  
+This means we need to show the view shift:
+\begin{align*}
+    \All m.
+  \abstractstateauth{\gamma_{o}}{m} \ast \issued (\gamma_{o}, n)
+  \vs[\mask\setminus\{c\}]
+  \abstractstateauth{\gamma_{o}}{m} \ast (\locked (\gamma) \ast P \lor \issued (\gamma_{o}, n)).
+\end{align*}
+Opening the invariant gives us $\abstractstatefullfrag{\gamma_{o}}{o}$ for some $o$.
+As in the preceding section, we then conclude that $o = m$.
+As in the old proof, we proceed by casing on whether $n = o$.
+If they are not the same, we choose to show the right side of the disjunction in $Q$, which we can do by simply closing the invariant again.
+If they are the same, however, we need to show that we can update our abstract state to $\locked$.
+This is accomplished the same way as in the old proof, i.e., by concluding that the left side of the disjunction in the invariant must have been true before and then closing the invariant again with our ticket instead, thereby releasing exactly the resources corresponding to $\locked$ and the lock resources needed for the postcondition of our specification.
+
+
+\subsubsection{acquire}
+The proof of the $\acquire$ specification is even closer to the old one than $\wait$.
+The $\CAS$ operation is now replaced by the $\incrC$ method, so we make use of its specification instead.
+We instantiate $P = \TRUE$ and $Q = \lambda v.
+\issued (\gamma_{n}, v)$ in the counter module's $\incrC$ specification and have to prove the view shift
+\begin{align*}
+    \All m.
+  \abstractstateauth{\gamma_{n}}{m} \ast \TRUE
+  \vs[\mask\setminus\{c\}]
+  \abstractstateauth{\gamma_{n}}{(m + 1)} \ast \issued (\gamma_{n}, m).
+\end{align*}
+Opening the invariant gives us the full non-authoritative permission for $\gamma_{n}$ containing some $m'$ and, as earlier, we can conclude that $m = m'$.
+Moreover, we get the authoritative part of the ticket lock resources and can update them as we did in the earlier proof, leaving us with the $\issued (\gamma_{n}, m)$, as needed for the postcondition of the view shift.
+With this ticket we can now use our $\wait$ specification from above and are done with the proof.
+
+
+\subsubsection{release}
+Release makes use of the $\wkincrC$ method, so we need to be able to provide some fragmental ownership of $\gamma_{o}$.
+This is contained in the $\locked$ predicate, which is part of our precondition.
+Intuitively, it makes sense to use $\wkincrC$ rather than $\incrC$, since only the thread currently holding the lock is allowed to call release.
+This is reflected in the formal specifications in the way that the only way to get the $\locked$ predicate is to have succeeded with $\acquire$.
+
+We instantiate $P$ by $\ownGhost{\gamma}{\authfrag (o, \emptyset)} \ast R$ and $Q$ by $\abstractstatefrac{\gamma_{o}}{2}{(m + 1)}$ in the counter module's $\wkincrC$ specification.
+The $R$ in $P$ are the resources the lock protects and we therefore currently own, since we have the lock.
+At this point, we have to prove the view shift
+\begin{align*}
+  \abstractstateauth{\gamma_{o}}{m} \ast \abstractstatefrac{\gamma_{o}}{2}{m} \ast \ownGhost{\gamma}{\authfrag (m, \emptyset)} \ast R
+  \vs[\mask\setminus\{c\}]
+  \abstractstateauth{\gamma_{o}}{(m + 1)} \ast \abstractstatefrac{\gamma_{o}}{2}{(m + 1)}.
+\end{align*}
+Note how $m$ is not universally quantified in this specification.
+This corresponds to the fact that we know that no other threads can change the value of the owner counter since we have our fragmental ownership of the corresponding ghost resource.
+Opening the invariant will give us the second half of non-authoritative ownership of $\gamma_{o}$.
+Again, we conclude the value it holds must be the same as $m$, so we can update $\gamma_{o}$ to contain $m + 1$.
+For the ticket lock ghost state we proceed as we did before in order to update it.
+We can then close the invariant with the resources for the left side of the disjunction and are done.
+  
+\subsection{Summary}
+\label{sec:logical-atomicity}
+
+Above we have presented a higher-order approach to modular specifications of concurrent modules,
+where method specifications are parameterized by view shifts expressing (1) how the abstract state of the
+module changes by calling the method and (2) how client invariants should be updated when the
+abstract state of the module changes. We have exemplified the method by presenting modular specifications
+of counters and shown how they can be used to verify modular implementations of ticket locks.
+In the accompanying Coq examples, you can find more examples, including a modular specification
+of the ticket lock and the concurrent bag and concurrent runner examples from~\cite{hocap-conf}.
+
+As mentioned in the introduction to this chapter, our methodology for modular specifications of concurrent modules 
+is related to the notion of logical atomicity from the TaDa logic.
+Indeed, the examples we have presented thus far can also be specified and verified using
+the Iris formalization of TaDa-style logical atomicity from~\cite{iris}.
+
+The original presentation of the TaDa approach focuses on atomicity and was aimed at giving logically atomic specifications
+to methods that, to a client, appear to be atomic.  The higher-order approach we have presented here focuses on
+changes to the abstract state and thus also applies to operations that are not logically atomic. 
+For example, consider the following operation:
+\newcommand{\incTwice}{\operatorname{incr\_twice}}
+\begin{align*}
+  \incTwice (\ell) =\ \incrC \ell ;; \incrC \ell
+\end{align*}
+This method does not have a single linearization point, so the fact that we cannot give it a logically atomic specification should not be a surprise.
+We can, however, use our higher-order approach if we use two view shifts, one for each modification of the abstract state.
+The specification looks as follows:
+\begin{align*}
+  \All \gamma, P, Q,' Q, \ell.
+  \begin{array}[t]{l}
+    \left(\All n. \abstractstateauth{\gamma}{n} \ast P \vs[\mask\setminus{\{\CntInvName\}}]
+    \abstractstateauth{\gamma}{(n+1)} \ast Q' (n) \right) \implies \\
+    \quad \left(\All n. \abstractstateauth{\gamma}{n} \ast (\Exists m. Q' (m)) \vs[\mask\setminus{\{\CntInvName\}}]
+    \abstractstateauth{\gamma}{(n+1)} \ast Q (n)\right) \implies \\
+    \quad \quad \hoare{\Cnt (\ell, \gamma, c) \ast P}{\incTwice (\ell)}{r. \Cnt (\ell, \gamma, c) \ast Q (r)}
+    \end{array}
+\end{align*}
+
+This said, one can use a modification of the Iris formalization of TaDa-style logically atomic triples to give
+a specification of $\incTwice$.
+Indeed, the two approaches are essentially equivalent. 
+
+
+
+%%% Local Variables:
+%%% mode: latex
+%%% TeX-master: "../main.tex"
+%%% End:
