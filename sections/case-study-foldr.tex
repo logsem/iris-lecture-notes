@@ -261,14 +261,14 @@ The following client implements a filter of some boolean predicate $p$ on a list
 \begin{align*}
 \All P. \All l. \All xs. 
 \hoareV[t]{ \left( \All x. \hoare{\TRUE}{p \, x}{v. \operatorname{isBool} \, v \ast v = P \, x}\right)
-\ast \isList {l} {xs} }{\langkw{filter}(p, l)}{r.  \isList {l} {xs} \ast \operatorname{isList} \, r \left( \operatorname{listFilter} \, P \, xs \right)}
+\ast \isList {l} {xs} }{\langkw{filter}(p, l)}{r.  \isList {l} {xs} \ast \operatorname{isList} \, r \left( \listFilter {P} {xs} \right)}
 \end{align*}
 where
 \begin{align*}
-\operatorname{listFilter} \, P \, [] &\equiv \, [] \\
-\operatorname{listFilter} \, P \, (x :: xs) &\equiv \begin{cases} \left( x :: \left( \operatorname{listFilter} \, P \, xs \right) \right)
+\listFilter {P} {[]} &\equiv \, [] \\
+\listFilter {P} {(x :: xs)} &\equiv \begin{cases} \left( x :: \left( \listFilter {P} {xs} \right) \right)
 													  & \text{if } \, P \, x = \True  \\
-\operatorname{listFilter} \, P \, xs  & \text{otherwise } \end{cases}
+\listFilter {P} {xs}  & \text{otherwise } \end{cases}
 \end{align*}
 
 The specification
@@ -283,19 +283,19 @@ Let $P, l$ and $xs$ be given. By $\ruleref{Ht-let-det-temp}$ it suffices to show
 \begin{align*}
 \hoareV{ \left( \All x. \hoare{\TRUE}{p \, x}{v. \operatorname{isBool} \, v \ast v = P \, x}\right)
 \ast \isList {l} {xs} }
-{\langkw{foldr}\left(\left( \lambda y, \Let x = \Proj{1} y in \Let xs = \Proj{2} y in \If {p\, x} then \Inj{2} (\Ref (x, xs) ) \Else  xs\right), \Inj{1}(), l\right)}{r.  \isList {l} {xs} \ast \operatorname{isList} \, r \left( \operatorname{listFilter} \, P \, xs \right)}
+{\langkw{foldr}\left(\left( \lambda y, \Let x = \Proj{1} y in \Let xs = \Proj{2} y in \If {p\, x} then \Inj{2} (\Ref (x, xs) ) \Else  xs\right), \Inj{1}(), l\right)}{r.  \isList {l} {xs} \ast \operatorname{isList} \, r \left( \listFilter {P} {xs} \right)}
  \end{align*}
-  By applying the specification for \langkw{foldr} with $\TRUE$ as $P \, x $, $\isList {a} {\left( \operatorname{listFilter} \, P \, xs \right)} $ as $I \, xs \, a $,
+  By applying the specification for \langkw{foldr} with $\TRUE$ as $P \, x $, $\isList {a} {\left( \listFilter {P} {xs} \right)} $ as $I \, xs \, a $,
   \begin{align*}
     \left( \lambda y, \Let x = \Proj{1} y in \Let xs = \Proj{2} y in \If {p\, x} then \Inj{2} (\Ref (x, xs) ) \Else  xs \right)
   \end{align*}
   as $f$, $xs$ as $xs$ and $l$ as $l$ we get that
  \begin{align*}
 \hoareV{ \begin{array}{l}
-\left(  \All x'. \All a'. \All ys. \hoare {\TRUE \ast \isList {a'} {\left( \operatorname{listFilter} \, P \, ys \right)}}{p' (x', a')}{v. \isList {v} {\left( \operatorname{listFilter} \, P \, (x'::ys) \right)} }
+\left(  \All x'. \All a'. \All ys. \hoare {\TRUE \ast \isList {a'} {\left( \listFilter {P} {ys} \right)}}{p' (x', a')}{v. \isList {v} {\left( \listFilter {P} {(x'::ys)} \right)} }
 \right) \\
-\ast \isList {l} {xs} \ast \operatorname{all} (\lambda x . \TRUE) \, xs \ast \operatorname{isList}(\Inj{1}())\, (\operatorname{listFilter} \, P \, []) \end{array}}
-{\langkw{foldr}\left(p', \Inj{1}(), l\right)}{r.  \isList {l} {xs} \ast \operatorname{isList} \, r \left( \operatorname{listFilter} \, P \, xs \right)}
+\ast \isList {l} {xs} \ast \operatorname{all} (\lambda x . \TRUE) \, xs \ast \isList {(\Inj{1}())} {(\listFilter {P} {[]})} \end{array}}
+{\langkw{foldr}\left(p', \Inj{1}(), l\right)}{r.  \isList {l} {xs} \ast \isList {r} {\left( \listFilter {P} {xs} \right)}}
  \end{align*}
  where $p'$ is a shorthand notation for
  \begin{align*}
@@ -308,16 +308,16 @@ Let $P, l$ and $xs$ be given. By $\ruleref{Ht-let-det-temp}$ it suffices to show
 \ast \isList {l} {xs}  \\
 & \implies \\
 & \begin{array}{l}
-\left(  \All x'. \All a'. \All ys. \hoare {\TRUE \ast \isList {a'} {\left( \operatorname{listFilter} \, P \, ys \right)}}{p' \, (x', \, a')}{v.\isList {v} {\left( \operatorname{listFilter} \, P \, (x'::ys) \right)}}
+\left(  \All x'. \All a'. \All ys. \hoare {\TRUE \ast \isList {a'} {\left( \listFilter {P} {ys} \right)}}{p' \, (x', \, a')}{v.\isList {v} {\left( \listFilter {P} {(x'::ys)} \right)}}
 \right) \\
-\ast \isList {l} {xs} \ast \operatorname{all} (\lambda x . \TRUE) \, xs \ast \isList {(\Inj{1}())} {(\operatorname{listFilter} \, P \, [])} \end{array}
+\ast \isList {l} {xs} \ast \operatorname{all} (\lambda x . \TRUE) \, xs \ast \isList {(\Inj{1}())} {(\listFilter {P} {[]})} \end{array}
  \end{align*}
 Since $\isList {l} {xs}$ clearly implies $\isList {l} {xs}$ we only need to show.
 \begin{enumerate}
 \item $\All x. \hoare{\TRUE}{p \, x}{v. \operatorname{isBool} \, v \ast v = P \, x} \\
-\implies \All x'. \All a'. \All ys. \hoare {\TRUE \ast \isList {a'} {\left( \operatorname{listFilter} \, P \, ys \right)}}{p' \, (x', \, a')}{v.\isList {v} {\left( \operatorname{listFilter} \, P \, (x'::ys) \right)}}$
+\implies \All x'. \All a'. \All ys. \hoare {\TRUE \ast \isList {a'} {\left( \listFilter {P} {ys} \right)}}{p' \, (x', \, a')}{v.\isList {v} {\left( \listFilter {P} {(x'::ys)} \right)}}$
 \item $\TRUE \implies \operatorname{all} (\lambda x . \TRUE) \, xs$
-\item $\TRUE \implies \operatorname{isList} (\Inj{1}()) \, (\operatorname{listFilter} \, P \, [])$
+\item $\TRUE \implies \isList {(\Inj{1}())} {(\listFilter {P} {[]})}$
 \end{enumerate}
 
 \begin{exercise}
