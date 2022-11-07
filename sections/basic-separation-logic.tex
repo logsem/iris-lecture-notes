@@ -732,6 +732,9 @@ granularity exemplified by the following exercise.
 
 \subsection{Reasoning about Mutable Data Structures}
 
+\newcommand{\isList}[2]{\operatorname{isList}~#1~#2}
+\newcommand{\map}[2]{\operatorname{map}~#1~#2}
+
 In the following examples we will work with linked lists -- chains of
 reference cells with forward links.  In order to specify their
 behaviour we assume (as explained in
@@ -749,17 +752,17 @@ inductively defined data structure in the sense known from statically
 typed funtional languages like ML or Coq -- it mimics the shape, but
 nothing inherently prevents the formation of, \eg{} cyclical lists.
 
-The $\operatorname{isList} l xs$ predicate relates 
+The $\isList {l} {xs}$ predicate relates 
 values $l$ to sequences $xs$; it is 
 defined by induction on $xs$:
 \begin{align*}
-  &\operatorname{isList} l [] \equiv l = \langkw{inj}_1()\\
-  &\operatorname{isList} l (x::xs) \equiv \Exists hd, l'. l = \langkw{inj}_2(hd) * hd \pointsto (x,l') * \operatorname{isList} l' xs
+  &\isList {l} {[]} \equiv l = \langkw{inj}_1()\\
+  &\isList {l} {(x::xs)} \equiv \Exists hd, l'. l = \langkw{inj}_2(hd) * hd \pointsto (x,l') * \isList {l'} {xs}
 \end{align*}
 %
 Notice that while our data representation in itself does not 
 ensure the absence of, \eg{}
-cyclic lists, the $\operatorname{isList} l xs$ predicate above 
+cyclic lists, the $\isList {l} {xs}$ predicate above 
 does ensure that the list $l$ is acyclic, because of
 separation of the $hd$ pointer and the inductive
 occurrence of the predicate.
@@ -773,8 +776,8 @@ To specify the next example we assume the $\operatorname{map}$ function on seque
 It is the logical function from sequences to sequences that applies $f$ at every index of the sequence:
 it is defined by the following two equations
 \begin{align*}
-  &\operatorname{map} f [] \equiv []\\
-  &\operatorname{map} f (x::xs) \equiv f x :: \operatorname{map} f xs
+  &\map{f}{[]} \equiv []\\
+  &\map{f}{(x::xs)} \equiv f x :: \map{f}{xs}
 \end{align*}
 
 
@@ -788,9 +791,9 @@ it is defined by the following two equations
   We wish to give it the following specification:
   \begin{mathpar}
     \forall xs.\forall l.
-    \hoare{\operatorname{isList} l xs}%
+    \hoare{\isList {l} {xs}}%
                 {\langkw{inc}\, l}%
-                {v.v=() \wedge \operatorname{isList} l (\operatorname{map} (1+) xs)}
+                {v.v=() \wedge \isList {l} {(\map {(1+)} {xs})}}
 \end{mathpar}
 %
 We proceed by the \ruleref{Ht-Rec} rule and we consider two cases: we
@@ -799,11 +802,11 @@ $x$ followed by another sequence $xs'$.
   
 In the first case we need to show
 \begin{mathpar}
-  \forall l.\hoare{\operatorname{isList} l []}{\langkw{match}\, l\, \langkw{with} ...}{v.v=() \wedge \operatorname{isList} l (\operatorname{map} (1+) [])}
+  \forall l.\hoare{\isList {l} {[]}}{\langkw{match}\, l\, \langkw{with} ...}{v.v=() \wedge \isList {l} {(\map {(1+)} {[]})}}
 \end{mathpar}
 and in the second
 \begin{mathpar}
-\forall x,xs'.\forall l.\hoare{\operatorname{isList} l (x::xs')}{\langkw{match}\, l\, \langkw{with} ...}{v.v=() \wedge \operatorname{isList} l (\operatorname{map} (1+) (x::xs'))}
+\forall x,xs'.\forall l.\hoare{\isList {l} {(x::xs')}}{\langkw{match}\, l\, \langkw{with} ...}{v.v=() \wedge \isList {l} {(\map {(1+)} {(x::xs')})}}
 \end{mathpar}
 where in the body we have replaced $\langkw{inc}$ with the function
 $f$ for which we assume the triple (the assumption of the premise of
@@ -811,7 +814,7 @@ the \ruleref{Ht-Rec} rule)
 \begin{align}
   \label{eq:list-inc-recursion-hyp}
   \forall xs.\forall l.
-  \hoare{\operatorname{isList} l xs}{f l}{v.v=() \wedge \operatorname{isList} l (\operatorname{map} (1+) xs)}.
+  \hoare{\isList {l} {xs}}{f l}{v.v=() \wedge \isList {l} {(\map {(1+)} {xs})}}.
 \end{align}
 %
 In both cases we proceed by the derived match rule from
@@ -820,29 +823,29 @@ predicate tells us enough information to determine the chosen branch
 of the match statement.
 
 In the first case we have
-$\operatorname{isList} l [] \equiv l = \langkw{inj}_1()$, and thus we
+$\isList {l} {[]} \equiv l = \langkw{inj}_1()$, and thus we
 easily prove
 \begin{mathpar}
-  \hoare{\operatorname{isList} l []}{l}{v.v=\Inj1() * \operatorname{isList} l []}
+  \hoare{\isList {l} {[]}}{l}{v.v=\Inj1() * \isList {l} {[]}}
 \end{mathpar}
 by \ruleref{Ht-frame} and \ruleref{Ht-Pre-Eq} followed by \ruleref{Ht-ret}.
 
 Thus we know the first branch is taken and so according to the derived match rule from Exercise~\ref{exercise:derived-match-rule} we need to show the following triple.
 \begin{mathpar}
-  \hoare{\operatorname{isList} l []}{()}{v.v=() * \operatorname{isList} l (\operatorname{map} (+1) [])} 
+  \hoare{\isList {l} {[]}}{()}{v.v=() * \isList {l} {(\map {(+1)} {[]})}} 
 \end{mathpar}
-which follows by \ruleref{Ht-ret} after framing away $\operatorname{isList} l []$, which is allowed as $\operatorname{map} (+1) [] \equiv []$.
+which follows by \ruleref{Ht-ret} after framing away $\isList {l} {[]}$, which is allowed as $\map {(+1)} {[]} \equiv []$.
 
 In the case where the sequence is not empty we have that
 \begin{align*}
-  \operatorname{isList} l (x::xs) \equiv \exists hd, l'. l = \Inj2 hd * hd \pointsto (x,l') * \operatorname{isList} l' xs'
+  \isList {l} {(x::xs)} \equiv \exists hd, l'. l = \Inj2 hd * hd \pointsto (x,l') * \isList {l'} {xs'}
 \end{align*}
 and thus we can prove
 \begin{align*}
   \hoareV
-  { l = \Inj2 hd * hd \pointsto (x,l') * \operatorname{isList} l' xs'}
+  { l = \Inj2 hd * hd \pointsto (x,l') * \isList {l'} {xs'}}
   {l}
-  {r.r=\Inj2 hd * l = \Inj2 hd * hd \pointsto (x,l') * \operatorname{isList} l' xs'}
+  {r.r=\Inj2 hd * l = \Inj2 hd * hd \pointsto (x,l') * \isList {l'} {xs'}}
 \end{align*}
 for some $l'$ and $hd$, using the rule \ruleref{Ht-exist}, the frame rule, the \ruleref{Ht-Pre-Eq} rule, and the \ruleref{Ht-ret} rule.
 \begin{exercise}
@@ -852,29 +855,29 @@ for some $l'$ and $hd$, using the rule \ruleref{Ht-exist}, the frame rule, the \
 This is enough to determine that the match takes the second branch, and using the derived match rule from Exercise~\ref{exercise:derived-match-rule} we proceed to verify the body of the second branch.
 Using the rules \ruleref{Ht-let-det-temp} and \ruleref{Ht-Proj} repeatedly we quickly prove 
 \begin{align*}
-  \hoareV{ l = \Inj2 hd * hd \pointsto (x,l') * \operatorname{isList} l' xs'}
+  \hoareV{ l = \Inj2 hd * hd \pointsto (x,l') * \isList {l'} {xs'}}
   {\begin{array}{l}
      \Let h = \Proj1 !hd in\\
      \Let t = \Proj2 !hd in\\
      hd \gets (h + 1, t)
    \end{array}}
-  {l = \Inj2 hd * hd \pointsto (x + 1,l') * \operatorname{isList} l' xs' * t = l' * h = x}
+  {l = \Inj2 hd * hd \pointsto (x + 1,l') * \isList {l'} {xs'} * t = l' * h = x}
 \end{align*}
 Now
 \begin{align*}
-  l = \Inj2 hd * hd \pointsto (x + 1,l') * \operatorname{isList} l' xs' * t = l' * h = x
+  l = \Inj2 hd * hd \pointsto (x + 1,l') * \isList {l'} {xs'} * t = l' * h = x
 \end{align*}
 clearly implies
 \begin{align*}
-  l = \Inj2 hd * hd \pointsto (x + 1,l') * \operatorname{isList} t xs'
+  l = \Inj2 hd * hd \pointsto (x + 1,l') * \isList {t} {xs'}
 \end{align*}
 and thus, by the sequencing rule \ruleref{Ht-seq-temp} and the rule of
 consequence \ruleref{Ht-csq}, we are left with proving
 \begin{align*}
   \hoareV
-  {l = \Inj2 hd * hd \pointsto (x + 1,l') * \operatorname{isList} t xs'}
+  {l = \Inj2 hd * hd \pointsto (x + 1,l') * \isList {t} {xs'}}
   {f t}
-  {r.r= () * \operatorname{isList} l (\operatorname{map} (+1) (x::xs'))}
+  {r.r= () * \isList {l} {(\map {(+1)} {(x::xs')})}}
 \end{align*}
 which follows from the induction hypothesis~\eqref{eq:list-inc-recursion-hyp}, and the definition of the $\operatorname{isList}$ predicate.
 \end{example}
@@ -923,14 +926,14 @@ which follows from the induction hypothesis~\eqref{eq:list-inc-recursion-hyp}, a
   \end{displaymath}
   We wish to give it the following specification where $\mdoubleplus$ is append on mathematical sequences.
   \begin{displaymath}
-    \forall xs, ys, l, l'.\hoare{\operatorname{isList} l\, xs \ast \operatorname{isList} l'\,ys}{\langkw{append}\,l\,l'}{v.\operatorname{isList} v\,(xs \mdoubleplus ys)}.
+    \forall xs, ys, l, l'.\hoare{\isList {l} {xs} \ast \isList {l'} {ys}}{\langkw{append}\,l\,l'}{v.\isList {v} {(xs \mdoubleplus ys)}}.
   \end{displaymath}
 
   \begin{itemize}
   \item Prove the specification.
   \item Is the following specification also valid?
     \begin{align*}
-      \forall xs, ys, l, l'.\hoare{\operatorname{isList} l\, xs \land \operatorname{isList} l'\,ys}{\langkw{append}\,l\,l'}{v.\operatorname{isList} v\,(xs \mdoubleplus ys)}
+      \forall xs, ys, l, l'.\hoare{\isList {l} {xs} \land \isList {l'} {ys}}{\langkw{append}\,l\,l'}{v.\isList {v} {(xs \mdoubleplus ys)}}
     \end{align*}
     Hint: Think about what is the result of $\langkw{append}\,l\,l$.
   \end{itemize}
@@ -979,7 +982,7 @@ is defined as follows:
   Intuitively we wish to give it the following specification:
   \begin{mathpar}
     \forall vs.\forall hd.
-    \hoare{\operatorname{isList} hd~vs}{\langkw{rev}(hd,\Inj1 ())}{r. \operatorname{isList} r~(\operatorname{reverse} vs)}
+    \hoare{\isList {hd} {vs}}{\langkw{rev}(hd,\Inj1 ())}{r. \isList {r} {(\operatorname{reverse} vs)}}
   \end{mathpar}
 
   The resulting induction hypothesis is, however, not strong enough,
@@ -990,7 +993,7 @@ is defined as follows:
   
   We generalize the specification of \langkw{rev} to the following specification:
   \begin{mathpar}
-    \forall vs, us.\forall hd,acc.\hoare{\operatorname{isList} hd\ vs * \operatorname{isList} acc\ us}{\langkw{rev}(hd,acc)}{r. \operatorname{isList} r (\operatorname{reverse} vs \mdoubleplus us)}
+    \forall vs, us.\forall hd,acc.\hoare{\isList {hd} {vs} * \isList {acc} {us} }{\langkw{rev}(hd,acc)}{r. \isList {r} {(\operatorname{reverse} vs \mdoubleplus us)}}
   \end{mathpar}
 
   \begin{exercise}
@@ -1015,11 +1018,11 @@ is defined as follows:
 
   If $vs=[]$, we argue that
   \begin{mathpar}
-    \hoare{\operatorname{isList} l~[] * \operatorname{isList} acc~us}{l}{r.r=\Inj1() * \operatorname{isList} acc~us}
+    \hoare{\isList {l} {[]} * \isList {acc} {us}}{l}{r.r=\Inj1() * \isList {acc} {us}}
   \end{mathpar}
   and thus by using the derived rule for match from Exercise~\ref{exercise:derived-match-rule} we need to show the following triple for the first branch of the match.
   \begin{mathpar}
-    \hoare{\operatorname{isList} acc~us}{acc}{r.\operatorname{isList} r (\operatorname{reverse} [] \mdoubleplus us)}
+    \hoare{\isList {acc} {us}}{acc}{r.\isList {r} {(\operatorname{reverse} [] \mdoubleplus us)}}
   \end{mathpar}
   This is easily seen to hold as $\operatorname{reverse} [] \mdoubleplus us \equiv us$.
 
@@ -1027,52 +1030,52 @@ is defined as follows:
   $\operatorname{isList}$ predicate, that there exists $l',hd$ such
   that
   \begin{mathpar}
-    \hoareV{\operatorname{isList} l~(v::vs') * \operatorname{isList} acc~us}{l}{r.r=\Inj2 hd * l = r * hd\pointsto(v,l') * \operatorname{isList} l'~vs' * \operatorname{isList} acc~us}
+    \hoareV{\isList {l} {(v::vs')} * \isList {acc} {us}}{l}{r.r=\Inj2 hd * l = r * hd\pointsto(v,l') * \isList {l'} {vs'} * \isList {acc} {us}}
   \end{mathpar}
   and we are thus in the second branch of the match.
   We start by showing
   \begin{align*}
-    \hoareV{l = \Inj2 hd * hd\pointsto(v,l') * \operatorname{isList} l'~vs' * \operatorname{isList} acc~us}
+    \hoareV{l = \Inj2 hd * hd\pointsto(v,l') * \isList {l'} {vs'} * \isList {acc} {us}}
     {\begin{array}{l}
        \Let h = \Proj1 !hd in\\
        \Let t = \Proj2 !hd in\\
        hd\gets(h,acc)
      \end{array}
     }
-    {l = \Inj2 hd * hd\pointsto(v,acc) * \operatorname{isList} l'~vs' * \operatorname{isList} acc~us * h = v * t = l'}
+    {l = \Inj2 hd * hd\pointsto(v,acc) * \isList {l'} {vs'} * \isList {acc} {us} * h = v * t = l'}
   \end{align*}
   by repeated applications of \ruleref{Ht-let-det-temp} and \ruleref{Ht-Proj}.
   Clearly the proposition
   \begin{align*}
-    l = \Inj2 hd * hd\pointsto(v,acc) * \operatorname{isList} l'~vs' * \operatorname{isList} acc~us * h = v * t = l'
+    l = \Inj2 hd * hd\pointsto(v,acc) * \isList {l'} {vs'} * \isList {acc} {us} * h = v * t = l'
   \end{align*}
   implies the proposition
   \begin{align*}
-    l = \Inj2 hd * hd\pointsto(v,acc) * \operatorname{isList} t~vs' * \operatorname{isList} acc~us * h = v
+    l = \Inj2 hd * hd\pointsto(v,acc) * \isList {t} {vs'} * \isList {acc} {us} * h = v
   \end{align*}
   which is simply
   \begin{align*}
-    \operatorname{isList} t~vs' * \operatorname{isList} l~(v::us)
+    \isList {t} {vs'} * \isList {l} {(v::us)}
   \end{align*}
   by definition of the $\operatorname{isList}$ predicate.
-  Finally by using the induction hypothesis (the assumption of \ruleref{Ht-Rec}) we have 
+  Finally by using the induction hypothesis (the assumption of \ruleref{Ht-Rec}) we have
   \begin{align*}
-    \hoareV{\operatorname{isList} t~vs' * \operatorname{isList} l~(v::us)}
+    \hoareV{\isList {t} {vs'} * \isList {l} {(v::us)}}
     {\langkw{rev}(t,l)}
-    {r. \operatorname{isList} r (\operatorname{reverse} vs' \mdoubleplus v::vs)}
+    {r. \isList {r} {(\operatorname{reverse} vs' \mdoubleplus v::vs)}}
   \end{align*}
   and we are done, observing that $(\operatorname{reverse} vs' \mdoubleplus v :: vs) \equiv \operatorname{reverse} (v::vs') \mdoubleplus vs$.
 
   Thus combining all of these using the sequencing rule \ruleref{Ht-seq-temp} and the rule of consequence \ruleref{Ht-csq} we have proved
   \begin{align*}
-    \hoareV{l = \Inj2 hd * hd\pointsto(v,l') * \operatorname{isList} l'~vs' * \operatorname{isList} acc~us}
+    \hoareV{l = \Inj2 hd * hd\pointsto(v,l') * \isList {l'} {vs'} * \isList {acc} {us}}
     {\begin{array}{l}
        \Let h = \Proj1 !hd in\\
        \Let t = \Proj2 !hd in\\
        hd\gets(h,acc); \langkw{rev}(t,l)
      \end{array}
     }
-    {r. \operatorname{isList} r (\operatorname{reverse} (v::vs') \mdoubleplus vs)}
+    {r. \isList {r} {(\operatorname{reverse} (v::vs') \mdoubleplus vs)}}
   \end{align*}
   as required.
 \end{example}
