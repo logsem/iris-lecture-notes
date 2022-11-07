@@ -17,7 +17,7 @@ This might be acceptable in certain applications, but is undesirable in others.
 A \emph{ticket lock} is a more refined spin lock which keeps track of the order in which access to critical region was demanded.
 It does this by keeping two counters which represent queue positions.
 The first counter is the queue position that is next in line for access to the critical region, and the second is the position of the client in the queue.
-When acquiring the lock, the client first obtains a position in the queue (a \emph{ticket}) by incrementing (atomically, using $\CAS$) the second counter.
+When acquiring the lock, the client first obtains a position in the queue (a \emph{ticket}) by incrementing the second counter (atomically, using the \emph{atomic fetch-and-add} operation, $\FAA$).
 Then it waits until it is its turn for entering the critical region.
 When releasing the lock, the first counter is incremented to allow other waiting clients to acquire the lock.
 
@@ -27,6 +27,16 @@ However, the specification of the ticket lock we give in this section does not e
 Indeed, we give the ticket lock the same specification as we gave to the spin lock in Example~\ref{ex:basic-spin-lock} on page~\ref{ex:basic-spin-lock}.
 Fairness is a \emph{liveness} property, and in fact a global property of the system, \ie{} not a property of an individual method, whereas Iris -- as presented here -- only allows reasoning about safety properties.
 
+\subsection{The atomic fetch-and-add operation}
+We add an atomic fetch-and-add operation to our programming language of the form $\FAA\ \ell\ n$ where $\ell$ is a location storing an integer and $n$ is an integer.
+Intuitively, this atomic operation atomically adds $n$ to the value stored in $\ell$ and returns the value stored in $\ell$ prior to the operation.
+This intuition is captured in the following proof rule:
+\begin{mathpar}
+  \inferH{Ht-FAA}
+  { }
+  {\hoare{\later\ell\pointsto n}{\FAA\ \ell\ m}{u. u = n \star \ell \pointsto (n + m)}}
+\end{mathpar}
+
 \subsection{Setup}
 The ticket lock has three methods, $\newLock$ for creating a new ticket lock, and $\acquire$ and $\release$
 for acquiring and releasing the lock respectively.
@@ -34,10 +44,7 @@ Moreover, we have an auxiliary $\wait$ method used by the $\acquire$ method.
 In order to make the verification more readable we write it as a separate public method.
 \begin{align*}
   \langkw{let} \newLock () ={} &(\Ref(0), \Ref(0))\\
-  \langkw{let} \acquire l ={} &\Let n = \deref (\Proj{2} l) in\\
-                           &\If{\CAS( (\Proj{2} l), n , n + 1) }\\
-                           &then{\wait o \; l}\\
-                           &\Else{\acquire l}\\
+  \langkw{let} \acquire l ={} &\Let o = \FAA\ (\Proj{2} l)\ 1 in \wait o \; l\\
   \langkw{let} \wait n \; l ={} &\Let o = \deref (\Proj{1} l) in \\
                            &\If{o = n}then{()}\Else{\wait n\; l}\\
   \langkw{let} \release l ={} &(\Proj{1} l) \gets \deref (\Proj{1} l) + 1
@@ -47,18 +54,8 @@ We will refer to them as \emph{\textbf{o}wner} and \emph{\textbf{n}ext} respecti
 
 In the $\acquire$ method we first try to obtain a ticket.
 This is the intention of the first two lines.
-However since another thread might try to obtain a ticket at the same time we need to use $\CAS$ to atomically increment, and thus might need to retry this operation.
-Once we succeed, we obtain a ticket in the queue, and proceed to wait our turn to get access to the resources protected by the lock by using the $\wait$ method.
-\begin{remark}
-  Note that it is indeed possible that we never obtain a ticket, since the scheduler might decide to schedule another thread every time just after we have read the value of the second counter.
-  Thus we might always fail to acquire the lock.
-  However, getting a ticket is a cheap operation, and we have to be exceedingly unlucky to always be preempted just after reading the counter.
-  In contrast, threads can spend a significant amount of time in the critical region, hence the spin lock is more likely to fail and always be prevented from acquiring the lock.
-
-  In a real implementation we would use a primitive \emph{fetch-and-add} operation supported by many modern processors instead of the $\CAS$ loop.
-  This would provide an even stronger guarantee.
-  We have chosen to keep things simple in these notes and not complicate the language too much, and hence we stick with only the $\CAS$ primitive.
-\end{remark}
+However since another thread might try to obtain a ticket at the same time we need to use $\FAA$ to atomically increment to obtain a ticket in the queue.
+We then proceed to wait our turn to get access to the resources protected by the lock by using the $\wait$ method.
 
 The $\wait$ method \emph{waits} until it is the given client's turn to enter the critical region.
 Note that the method does not need to use any synchronisation primitives since only the thread that acquired the lock should release it, and thus the value of $n$ will not change once it becomes $n$; this is the invariant maintained by all the methods of the ticket lock module.
@@ -198,31 +195,21 @@ We begin the same way as with $\wait$, since we are dealing with a recursive def
 \end{align*}
 and want to show:
 \begin{align*}
-  \hoare{\isLock(v, P, \gamma)}{\Let o = \deref (\Proj{2} v) in \dots}{\_.P \ast \locked(\gamma)}
+  \hoare{\isLock(v, P, \gamma)}{\Let o = \FAA\ (\Proj{2} v) 1 in \wait o \; v}{\_.P \ast \locked(\gamma)}
 \end{align*}
 
-By unfolding the $\isLock$ predicate, we get the concrete pair of locations $\ell_{o}, \ell_{n}$ we can substitute $v$ with. Moreover, we can move our invariant into the context. Now we use \ruleref{Ht-let-det} twice and \ruleref{Ht-Proj} once. At this point we have the expression $\deref \ell_{n}$, so we need to open the invariant in order to access the $\ell_{n} \pointsto n$ information stored in it. Since we don't change anything, we can close the invariant again after getting the stored value $n$. This means we now need to show:
+By unfolding the $\isLock$ predicate, we get the concrete pair of locations $\ell_{o}, \ell_{n}$ we can substitute $v$ with. Moreover, we can move our invariant into the context. Now we use \ruleref{Ht-let-det} and \ruleref{Ht-Proj}. This means we now need to show:
 \begin{align*}
-  \knowInv{\iota}{\lockInv (\gamma, \ell_{o}, \ell_{n}, P)}\proves \hoare{\TRUE}{\If{\CAS(\Proj{2} (\ell_{o}, \ell_{n}), o , o + 1) } then{\wait o \; v} \Else{\acquire v}}{\_.P \ast \locked(\gamma)}
+  \knowInv{\iota}{\lockInv (\gamma, \ell_{o}, \ell_{n}, P)}\proves \hoare{\TRUE}{\FAA\ \ell_{n}\ 1}{o. \issued (\gamma, o)}
 \end{align*}
-We use the \ruleref{Ht-Proj} and \ruleref{Ht-op} rules, followed by the bind rule with the intermediate goal.
-\begin{align*}
-  \knowInv{\iota}{\lockInv (\gamma, \ell_{o}, \ell_{n}, P)}\proves \hoare{\TRUE}{\CAS(\ell_{n}, o , o + 1)}{u. (u = \True \ast \issued (\gamma, o)) \lor u = \False)}
-\end{align*}
-Since $\CAS$ is atomic, we can open our invariant again. We then proceed by casing on $n = o$.
-If $n = o$, then we can use the \ruleref{Ht-CAS-succ} rule.
-By \ruleref{Ht-csq}, it is sufficient to show either side of the disjunction in the postcondition. In this case, we choose $(u = \True \ast \issued (\gamma, o))$. We can now update our authoritative ghost state from $\authfull (o, \{ i \mid 0 \leq i < n \})$ to $\authfull (o, \{ i \mid 0 \leq i < n \} \cup \{n \}) \cdot \authfrag (\emptyset, \{n\})$. 
+Since $\FAA$ is atomic, we can open our invariant.
+We can use the \ruleref{Ht-FAA} rule.
+At this point, we obtain $\ell_{n} \pointsto n + 1$ where $n$ is the value of $\ell_{n}$ when we opened the invariant. We can now update our authoritative ghost state from $\authfull (o, \{ i \mid 0 \leq i < n \})$ to $\authfull (o, \{ i \mid 0 \leq i < n \} \cup \{n \}) \cdot \authfrag (\emptyset, \{n\})$.
 Performing the union gives us exactly the resources we need to close the invariant again. Moreover, the remaining ghost state $\authfrag (\emptyset, \{n\})$ is exactly $\issued (\gamma, n)$, so we are done with the intermediate goal. At this point we need to show:
 \begin{align*}
-  \knowInv{\iota}{\lockInv (\gamma, \ell_{o}, \ell_{n}, P)}\proves \hoare{\issued (\gamma, n)}{\If{\True} then{\wait n \; v} \Else{\acquire v}}{\_.P \ast \locked(\gamma)}
+  \knowInv{\iota}{\lockInv (\gamma, \ell_{o}, \ell_{n}, P)}\proves \hoare{\issued (\gamma, n)}{\wait n \; v}{\_.P \ast \locked(\gamma)}
 \end{align*}
-We therefore proceed with the \ruleref{Ht-If-True} rule and end up exactly where we wanted to be in order to apply our $\wait$ specification, which takes care of the rest of this case.
-
-In the case of $n \neq o$, we apply the \ruleref{Ht-CAS-fail} rule and choose to prove the other side of the disjunction. We haven't changed anything and can therefore close our invariant again and are done with the intermediate goal. At this point, we need to show:
-\begin{align*}
-  \knowInv{\iota}{\lockInv (\gamma, \ell_{o}, \ell_{n}, P)}\proves \hoare{\TRUE}{\If{\False} then{\wait n \; v} \Else{\acquire v}}{\_.P \ast \locked(\gamma)}
-\end{align*}
-We therefore proceed with the \ruleref{Ht-If-False} rule and notice that the remaining proof obligation matches the assumption about the recursive call, so we are done.
+This is exactly where we wanted to be in order to apply our $\wait$ specification, which takes care of the rest of this case.
 
 \subsubsection{release}
 The final obligation is the specification for the $\release$ method. We need to show the following triple:
