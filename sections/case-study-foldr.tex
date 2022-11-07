@@ -186,7 +186,7 @@ The following client is a function that computes the sum of a list of natural nu
 The specification of the $\langkw{sumList}$ function is as follows.
 \begin{align*}
 \All l. \All xs.
-  \hoare{ \isList {l} {xs} \ast \all {operatorname{isNat}} {xs}}{\langkw{sumList} \, l}{r.  \isList {l} {xs} \ast r = \Sigma_{x \in xs} x}
+  \hoare{ \isList {l} {xs} \ast \all {\operatorname{isNat}} {xs}}{\langkw{sumList} \, l}{r.  \isList {l} {xs} \ast r = \Sigma_{x \in xs} x}
 \end{align*}
 where 
 \begin{align*}
@@ -201,7 +201,7 @@ The $\isList {l} {xs}$ in the postcondition again ensures that $\langkw{sumList}
 \paragraph*{Proof of the \langkw{sumList} specification}
 Let $l$ and  $xs$ be given. By \ruleref{Ht-let-det-temp} it suffices to show
 \begin{align*}
-  \hoareV{ \isList {l} {xs} \ast \all {operatorname{isNat}} {xs}}
+  \hoareV{ \isList {l} {xs} \ast \all {\operatorname{isNat}} {xs}}
   {\langkw{foldr}\left((\lambda p, \Let x = \Proj{1} p in \Let y = \Proj{2} p in x + y), 0, l\right)}
   {r.  \isList {l} {xs} \ast r = \Sigma_{x \in xs} x}
 \end{align*}
@@ -213,16 +213,16 @@ as $f$, $l$ as $l$, and $xs$ as $xs$ we get
 \begin{align*}
 \hoareV{ \begin{array}{l}
 \left( \All x, a. \All ys.  \hoare{\operatorname{isNat}\, x \ast a = \Sigma_{y \in ys} y}{(\lambda p, \Let x = \Proj{1} p in \Let y = \Proj{2} p in x + y) (x, \, a)}{r. r = \Sigma_{y\in (x::ys)}y} \right) \\
-\ast \isList {l} {xs} \ast \all {operatorname{isNat}} {xs} \ast 0 = \Sigma_{x \in []} x\end{array}}
+\ast \isList {l} {xs} \ast \all {\operatorname{isNat}} {xs} \ast 0 = \Sigma_{x \in []} x\end{array}}
 {\langkw{foldr}\left((\lambda p, \Let x = \Proj{1} p in \Let y = \Proj{2} p in x + y), a, l\right)}
 {r.  \isList {l} {xs} \ast r = \Sigma_{x \in xs} x}
 \end{align*}
 which is almost what we want. The difference being the precondition. By \ruleref{Ht-csq} it suffices to show
 \begin{align*}
-\isList {l} {xs} \ast \all {operatorname{isNat}} {xs} \implies 
+\isList {l} {xs} \ast \all {\operatorname{isNat}} {xs} \implies 
 \begin{array}{l}
 \left( \All x, a. \All ys.  \hoareV{\operatorname{isNat}\, x \ast a = \Sigma_{y \in ys} y}{(\lambda p, \Let x = \Proj{1} p in \Let y = \Proj{2} p in x + y) (x, \, a)}{r. r = \Sigma_{y\in (x::ys)}y} \right) \\
-\ast \isList {l} {xs} \ast \all {operatorname{isNat}} {xs} \ast 0 = \Sigma_{x \in []} x\end{array}
+\ast \isList {l} {xs} \ast \all {\operatorname{isNat}} {xs} \ast 0 = \Sigma_{x \in []} x\end{array}
 \end{align*}
 \ie{}~it is suffices to prove  
 \begin{enumerate}

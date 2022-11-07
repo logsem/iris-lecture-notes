@@ -773,8 +773,8 @@ To specify the next example we assume the $\operatorname{map}$ function on seque
 It is the logical function from sequences to sequences that applies $f$ at every index of the sequence:
 it is defined by the following two equations
 \begin{align*}
-  &\map{f}{[]} \equiv []\\
-  &\map{f}{(x::xs)} \equiv f x :: \map{f}{xs}
+  &\map {f} {[]} \equiv []\\
+  &\map {f} {(x::xs)} \equiv f x :: \map{f}{xs}
 \end{align*}
 
 
@@ -990,7 +990,7 @@ is defined as follows:
   
   We generalize the specification of \langkw{rev} to the following specification:
   \begin{mathpar}
-    \forall vs, us.\forall hd,acc.\hoare{\isList {hd} {vs} * \isList {acc} {us} }{\langkw{rev}(hd,acc)}{r. \isList {r} {(\operatorname{reverse} vs \mdoubleplus us)}}
+    \forall vs, us.\forall hd,acc.\hoare{\isList {hd} {vs} * \isList {acc} {us}}{\langkw{rev}(hd,acc)}{r. \isList {r} {(\operatorname{reverse} vs \mdoubleplus us)}}
   \end{mathpar}
 
   \begin{exercise}
