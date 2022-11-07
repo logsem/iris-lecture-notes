@@ -163,11 +163,12 @@
 
 \renewcommand{\Prop}{\mProp}
 
-% Multiple argument macros
-\newcommand{\isList}[2]{\operatorname{isList} #1 \spac #2}
-\newcommand{\map}[2]{\operatorname{map} #1 \spac #2}
-\newcommand{\listFilter}[2]{\operatorname{listFilter} #1 \spac #2}
-\newcommand{\all}[2]{\operatorname{all} #1 \spac #2}
+% Multiple argument macros with consistent spacing
+\newcommand{\twoArgMacro}[2]{\newcommand{#1}[2]{#2 ##1 \spac ##2}}
+\twoArgMacro{\isList}{\operatorname{isList}}
+\twoArgMacro{\map}{\operatorname{map}}
+\twoArgMacro{\listFilter}{\operatorname{listFilter}}
+\twoArgMacro{\all}{\operatorname{all}}
 
 %%% Local Variables:
 %%% mode: latex
