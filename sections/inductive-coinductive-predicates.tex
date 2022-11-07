@@ -20,14 +20,14 @@ as interesting exercises.\footnote{Formal proofs in Iris in Coq can be found in 
 \paragraph{Preview} 
 We have already seen two ways of defining predicates on $\tau$, which we now call to mind.
 First, recall the $\operatorname{isList}$ predicate defined in Section \ref{sec:basic-separation-logic}.
-There we explained that $\operatorname{isList} l\, xs$ relates a programming language value $l$ to a mathematical sequence of values
+There we explained that $\isList {l} {xs}$ relates a programming language value $l$ to a mathematical sequence of values
 $xs$, \ie\ $\operatorname{isList}$ is of type $\Val\to\operatorname{Seq}(\Val)\to\Prop$,
 and that it was defined by induction on the mathematical sequence $xs$.  Observe: $\operatorname{Seq}(\Val)$ is
 an Iris \emph{type} of standard mathematical sequences and we use that to define a new predicate $\operatorname{isList}$.
 Now, what if we do not care about which mathematical sequence $l$ represents, but just want to express
 that $l$ is a linked list representing some unknown sequence of elements ?
 Then we can, of course, define a new predicate
-$\operatorname{MList} : \Val\to\Prop$ by setting $\operatorname{MList} l = \Exists xs. \operatorname{isList} l\, xs$.
+$\operatorname{MList} : \Val\to\Prop$ by setting $\operatorname{MList} l = \Exists xs. \isList {l} {xs}$.
 But we could also define a predicate by guarded recursion by letting
 \begin{displaymath}
   \operatorname{GList} = \MU \phi:\Val\to\Prop. \lambda l .
