@@ -19,28 +19,28 @@ The specification of the $\langkw{foldr}$ function is as follows.
 \All P, I. \All f \in \Val . \All xs. \All l. \hoareV[t]
 {
   \begin{array}{l}
-    \operatorname{isList} l\, xs \ast \operatorname{all} P\, xs \ast  I \, [] \, a \ast{}\\
+    \isList {l} {xs} \ast \all {P} {xs} \ast  I \, [] \, a \ast{}\\
     \left( \All x \in \Val. \All a' \in \Val. \All ys. \hoare{P x \ast I \, ys \, a'}{f \, (x, \, a')}{r. I (x::ys) r} \right)
   \end{array}
   }
 {\langkw{foldr}(f, a, l)}
-{r.  \operatorname{isList} l \ xs \ast I\, xs\, r}
+{r.  \isList {l} {xs} \ast I\, xs\, r}
 \end{align*}
-where the predicate $\operatorname{all} P\, xs$ states that $P$ holds for all elements of the list.
+where the predicate $\all {P} {xs}$ states that $P$ holds for all elements of the list.
 It is defined by induction on the list as
 \begin{align*}
- \operatorname{all} P\, [] &\equiv \TRUE \\
- \operatorname{all} P\, (x::xs) &\equiv P \, x \ast \operatorname{all} P\, xs
+ \all {P} {[]} &\equiv \TRUE \\
+ \all {P} {(x::xs)} &\equiv P \, x \ast \all {P} {xs}
 \end{align*}
 
 We want the specification of $\langkw{foldr}$ to capture to following:
 \begin{itemize}
 \item The third argument $l$ needs to be a linked list implementing the mathematical sequence $xs$.
-  This is captured by $\operatorname{isList} \ l \ xs$ in the precondition.
+  This is captured by $\isList {l} {xs}$ in the precondition.
 \item We do not want $\langkw{foldr}$ to change the list.
-  This is captured by having $\operatorname{isList} l \ xs$ in the postcondition.
+  This is captured by having $\isList {l} {xs}$ in the postcondition.
 \item Some clients may not want to operate on general lists but only on subsets of those (\eg{}~only on lists of odd natural numbers or lists of booleans).
-  This is captured by letting the client choose a predicate $P$ and then having $\operatorname{all} P\, xs$ in the precondition force the specification to only hold for list $xs$, where $P \ x$ holds for all $x$ in $xs$.
+  This is captured by letting the client choose a predicate $P$ and then having $\all {P} {xs}$ in the precondition force the specification to only hold for list $xs$, where $P \ x$ holds for all $x$ in $xs$.
 \item We want to be able to relate the return value $r$ to the list $xs$ we have folded.
   This is done by an invariant $I\, xs\, r$.
   In the case were $\langkw{foldr}$ is applied to the empty list the return value is simply the $a$ provided, hence $I$ needs to be chosen such that $I \, [] \, a$ holds.
@@ -64,7 +64,7 @@ In this case we are going to instantiate the specification of $f$ with $\langkw{
 In this sense the specification for $f$ simply says that if $x$ satisfies $P$ and the result $a'$ of folding $f$ over the subsequence $xs$ satisfies the invariant, then applying $f$ to $(x, a')$ (which is exactly what $\langkw{foldr}$ does on the sequence $(x::xs)$) gives a result, such that $I$ relates it to the sequence $(x::xs)$.
 
 \begin{remark}
-  The only place, where our concrete implementation $l$ of the list (as a linked list) is used is in $\operatorname{isList} \, l \, xs$ where it is linked to a mathematical sequence $xs$.
+  The only place, where our concrete implementation $l$ of the list (as a linked list) is used is in $\isList {l} {xs}$ where it is linked to a mathematical sequence $xs$.
   The predicates $P, I$ and $\operatorname{all}$ are all defined on mathematical sequences instead.
   In this sense we may say that the mathematical sequences are abstractions or models of our concrete lists and $P, I$ and $\operatorname{all}$ operate on these models, hence the distinction between implementation details and mathematical properties becomes clear.
 \end{remark}
@@ -78,16 +78,16 @@ Let $P, I, f, xs$ and $l$ be given. As Hoare triples are persistent and persiste
 \begin{align*}
 \All x. \All a'. \All ys. \hoare{P \, x \ast I \, ys \, a'}{f \, (x, \, a')}{r. I\, (x::ys)}
 \proves \hoareV
-{ \operatorname{isList} \, l\, xs \ast \operatorname{all} P \, xs \ast  I \, [] \, a}
+{ \isList {l} {xs} \ast \all {P} {xs} \ast  I \, [] \, a}
 {\langkw{foldr}(f, a, l)}
-{r.  \operatorname{isList} \, l \, xs \ast I \, xs\, r}
+{r.  \isList {l} {xs} \ast I \, xs\, r}
 \end{align*}
 
 We proceed by \ruleref{Ht-Rec} i.e. we have to prove the specification for the body of $\langkw{foldr}$ in which we have replaced any occurrence of $\langkw{foldr}$ with the function $g$ for which
 \begin{align*}
-\All xs. \All l. \hoare{ \operatorname{isList} \, l\, xs \ast \operatorname{all} P \, xs \ast  I \, [] \, a}
+\All xs. \All l. \hoare{ \isList {l} {xs} \ast \all {P} {xs} \ast  I \, [] \, a}
  {g(f, a, l)}
-{r.  \operatorname{isList} \, l \, xs \ast I \, xs\, r}
+{r.  \isList {l} {xs} \ast I \, xs\, r}
 \end{align*}
 is assumed.
 
@@ -95,23 +95,23 @@ By the definition of the $\operatorname{isList}$ predicate we have that the list
 
 In the first case we need to show
 \begin{align*}
-\hoare{ \operatorname{isList} \, l\, [] \ast \operatorname{all} P \, [] \ast  I \, [] \, a}
+\hoare{ \isList {l} {[]} \ast \all {P} {[]} \ast  I \, [] \, a}
 {\langkw{match}\ l\ \langkw{with} ...}
-{r.  \operatorname{isList} \, l \, [] \ast I \, []\, r} 
+{r.  \isList {l} {[]} \ast I \, []\, r} 
 \end{align*}
 and in the second
 \begin{align*}
-\hoare{ \operatorname{isList} \, l\, (x::xs') \ast \operatorname{all} P \, (x::xs') \ast  I \, [] \, a}
+\hoare{ \isList {l} {(x::xs')} \ast \all {P} {(x::xs')} \ast  I \, [] \, a}
 {\langkw{match}\ l\ \langkw{with} ...}
-{r.  \operatorname{isList} \, l \, xs \ast I \, xs\, r}
+{r.  \isList {l} {xs} \ast I \, xs\, r}
 \end{align*}
 In both cases we proceed by the derived match rule from Exercise~\ref{exercise:derived-match-rule}.
 
-In the first case we have $\operatorname{isList}\, l\, [] \equiv l = \langkw{inj}_1()$ hence the first case is taken (follows by \ruleref{Ht-frame}, \ruleref{Ht-Pre-Eq} and \ruleref{Ht-ret}), thus we have to prove
+In the first case we have $\isList {l} {[]} \equiv l = \langkw{inj}_1()$ hence the first case is taken (follows by \ruleref{Ht-frame}, \ruleref{Ht-Pre-Eq} and \ruleref{Ht-ret}), thus we have to prove
 \begin{align*}
-\hoare{ \operatorname{isList} \, l\, [] \ast  I \, [] \, a}{a}{r.  \operatorname{isList} \, l \, [] \ast I \, []\, r} 
+\hoare{ \isList {l} {[]} \ast  I \, [] \, a}{a}{r.  \isList {l} {[]} \ast I \, []\, r} 
 \end{align*}
-After framing $ \operatorname{isList} \, l\, [] $ we are left with proving
+After framing $ \isList {l} {[]} $ we are left with proving
 \begin{align*}
 \hoare{ I \, [] \, a}{a}{r. I\, [] \, r} 
 \end{align*}
@@ -121,36 +121,37 @@ As $I \, [] \, r $ follows from $r = a \ast I \, [] \, a$ it suffices by \rulere
 \end{align*}
 which follows by \ruleref{Ht-frame} and \ruleref{Ht-ret}.
 
-In the second case we have $\operatorname{isList}\, l\, (x :: xs') \equiv \Exists hd, l'.l = \langkw{inj}_2 hd \ast hd \pointsto (x, l') \ast \operatorname{isList}\, l'\, xs'$. By exercise \ref{exercise:isList-second-case} we get that the second case is taken, thus we need to prove
+In the second case we have $\isList {l} {(x :: xs')} \equiv \Exists hd, l'.l = \langkw{inj}_2 hd \ast hd \pointsto (x, l') \ast \isList {l'} {xs'}$.
+By exercise \ref{exercise:isList-second-case} we get that the second case is taken, thus we need to prove
 \begin{align*}
   \hoareV{ 
-  	\operatorname{isList} \, l' \, xs' \ast \operatorname{all} P \, (x::xs') \ast I \, [] \, a \ast l = \Inj2 hd \ast hd \pointsto (x,l') }
+  	\isList {l'} {xs'} \ast \all {P} {(x::xs')} \ast I \, [] \, a \ast l = \Inj2 hd \ast hd \pointsto (x,l') }
   {\begin{array}{l}
      \Let h= \Proj{1} \deref x_2 in\\
      \Let t = \Proj{2} \deref x_2 in\\
     	f\, (h, (g(f, a, t)))
    \end{array}}
-  {r.  \operatorname{isList} \, l \, (x::xs') \ast I \, (x::xs') \, r}
+  {r.  \isList {l} {(x::xs')} \ast I \, (x::xs') \, r}
 \end{align*}
 By simple applications of \ruleref{Ht-let-det-temp}, \ruleref{Ht-frame}, \ruleref{Ht-bind}, \ruleref{Ht-load-temp}, \ruleref{Ht-Proj} and \ruleref{Ht-ret} we need to show:
 \begin{align*}
-  \hoareV{ \operatorname{isList} \, l' \, xs' \ast \operatorname{all} P \, (x::xs) \ast I \, [] \, a \ast l = \Inj2 hd \ast hd \pointsto (x,l')  }
+  \hoareV{ \isList {l'} {xs'} \ast \all {P} {(x::xs)} \ast I \, [] \, a \ast l = \Inj2 hd \ast hd \pointsto (x,l')  }
     	{f (x, g(f, a, l'))}
-  {r. \operatorname{isList} \, l \, (x::xs') \ast I \, (x::xs') \, r}
+  {r. \isList {l} {(x::xs')} \ast I \, (x::xs') \, r}
 \end{align*}
 By \ruleref{Ht-bind-det} we have to show:
 \begin{enumerate}
 \item $f\, (x , -)$ is an evaluation context.
 \item the specification
   \begin{align*}
-\hoareV{ \operatorname{isList} \, l' \, xs' \ast \operatorname{all} P \, (x::xs') \ast I \, [] \, a \ast l = \Inj2 hd \ast hd \pointsto (x,l')  }
+\hoareV{ \isList {l'} {xs'} \ast \all {P} {(x::xs')} \ast I \, [] \, a \ast l = \Inj2 hd \ast hd \pointsto (x,l')  }
     	{g(f, a, l')}
-  {r. \operatorname{isList} \, l' \, xs' \ast I \, xs' \, r \ast P\, x \ast l = \Inj2 hd \ast hd \pointsto (x,l') }
+  {r. \isList {l'} {xs'} \ast I \, xs' \, r \ast P\, x \ast l = \Inj2 hd \ast hd \pointsto (x,l') }
 \end{align*}
 \item the specification \begin{align*}
-  \hoareV{ \operatorname{isList} \, l' \, xs' \ast I \, xs' \, v \ast P\, x \ast l = \Inj2 hd \ast hd \pointsto (x,l') }
+  \hoareV{ \isList {l'} {xs'} \ast I \, xs' \, v \ast P\, x \ast l = \Inj2 hd \ast hd \pointsto (x,l') }
     	{f (x, v)}
-  {r. \operatorname{isList} \, l \, (x::xs') \ast I \, (x::xs') \, r}
+  {r. \isList {l} {(x::xs')} \ast I \, (x::xs') \, r}
 \end{align*}
 \end{enumerate}
 
@@ -160,15 +161,15 @@ By \ruleref{Ht-bind-det} we have to show:
   \footnote{If we hadn't let $f$ take the arguments as a tuple then we would have been stuck here as $f (x, -)$ is not an evaluation context.
   To get past this, we would need to change the specification, such that $f \, x$ would return a function $g$, that when applied to $a'$ would satisfy the current specification for $f$ \ie{} we would have to specify $f$ using a nested Hoare triple and the specification for \langkw{foldr} would then involve a nested triple inside a nested triple.}
 
-\item Follows by unfolding the definition of $\operatorname{all} P (x::xs') = P \, x \ast \operatorname{all} P \, xs'$, framing $P \, x \ast l = \Inj2 hd \ast hd \pointsto (x,l')$ and then using our assumption on $g$.
+\item Follows by unfolding the definition of $\all {P} {(x::xs')} = P \, x \ast \all {P} {xs'}$, framing $P \, x \ast l = \Inj2 hd \ast hd \pointsto (x,l')$ and then using our assumption on $g$.
 
-\item As $ \operatorname{isList} \, l' \, xs' \ast l = \Inj2 hd \ast hd \pointsto (x,l') \implies \operatorname{isList} \, l \, (x::xs') $ then it suffices by \ruleref{Ht-csq} to show
+\item As $ \isList {l'} {xs'} \ast l = \Inj2 hd \ast hd \pointsto (x,l') \implies \isList {l} {(x::xs')} $ then it suffices by \ruleref{Ht-csq} to show
   \begin{align*}
-    \hoareV{ \operatorname{isList} \, l \, (x::xs') \ast P\, x \ast I \, xs' \, v  }
+    \hoareV{ \isList {l} {(x::xs')} \ast P\, x \ast I \, xs' \, v  }
     {f x \, v}
-    {r. \operatorname{isList} \, l \, (x::xs') \ast I \, (x::xs') \, r}
+    {r. \isList {l} {(x::xs')} \ast I \, (x::xs') \, r}
   \end{align*}
-  which follows by framing $\operatorname{isList} \, l \, (x::xs')$ and using our assumption
+  which follows by framing $\isList {l} {(x::xs')}$ and using our assumption
   on $f$.
 \end{enumerate}
 
@@ -185,7 +186,7 @@ The following client is a function that computes the sum of a list of natural nu
 The specification of the $\langkw{sumList}$ function is as follows.
 \begin{align*}
 \All l. \All xs.
-  \hoare{ \operatorname{isList} \, l\, xs \ast \operatorname{all} \operatorname{isNat}\, xs}{\langkw{sumList} \, l}{r.  \operatorname{isList} \, l\, xs \ast r = \Sigma_{x \in xs} x}
+  \hoare{ \isList {l} {xs} \ast \all {\operatorname{isNat}} {xs}}{\langkw{sumList} \, l}{r.  \isList {l} {xs} \ast r = \Sigma_{x \in xs} x}
 \end{align*}
 where 
 \begin{align*}
@@ -195,14 +196,14 @@ where
 is a predicate stating that the argument is a natural number.
 
 The specification of the $\langkw{sumList}$ function states that given a list of natural numbers implemented by $l$, the result of $\langkw{sumList}\,l$ is the sum of all the natural numbers in the list.
-The $\operatorname{isList} \, l\, xs$ in the postcondition again ensures that $\langkw{sumList}$ does not change the list.
+The $\isList {l} {xs}$ in the postcondition again ensures that $\langkw{sumList}$ does not change the list.
 
 \paragraph*{Proof of the \langkw{sumList} specification}
 Let $l$ and  $xs$ be given. By \ruleref{Ht-let-det-temp} it suffices to show
 \begin{align*}
-  \hoareV{ \operatorname{isList} \, l\, xs \ast \operatorname{all} \operatorname{isNat} xs}
+  \hoareV{ \isList {l} {xs} \ast \all {\operatorname{isNat}} {xs}}
   {\langkw{foldr}\left((\lambda p, \Let x = \Proj{1} p in \Let y = \Proj{2} p in x + y), 0, l\right)}
-  {r.  \operatorname{isList} \, l\, xs \ast r = \Sigma_{x \in xs} x}
+  {r.  \isList {l} {xs} \ast r = \Sigma_{x \in xs} x}
 \end{align*}
 Using the specification for $\langkw{foldr}$, with $\operatorname{isNat}$ as $P$, $a' = \Sigma_{y \in ys } y$ as $I \, ys \, a'$, $0$ as $a$,
 \begin{align*}
@@ -212,16 +213,16 @@ as $f$, $l$ as $l$, and $xs$ as $xs$ we get
 \begin{align*}
 \hoareV{ \begin{array}{l}
 \left( \All x, a. \All ys.  \hoare{\operatorname{isNat}\, x \ast a = \Sigma_{y \in ys} y}{(\lambda p, \Let x = \Proj{1} p in \Let y = \Proj{2} p in x + y) (x, \, a)}{r. r = \Sigma_{y\in (x::ys)}y} \right) \\
-\ast \operatorname{isList} \, l\, xs \ast \operatorname{all} \operatorname{isNat}\, xs \ast 0 = \Sigma_{x \in []} x\end{array}}
+\ast \isList {l} {xs} \ast \all {\operatorname{isNat}} {xs} \ast 0 = \Sigma_{x \in []} x\end{array}}
 {\langkw{foldr}\left((\lambda p, \Let x = \Proj{1} p in \Let y = \Proj{2} p in x + y), a, l\right)}
-{r.  \operatorname{isList} \, l\, xs \ast r = \Sigma_{x \in xs} x}
+{r.  \isList {l} {xs} \ast r = \Sigma_{x \in xs} x}
 \end{align*}
 which is almost what we want. The difference being the precondition. By \ruleref{Ht-csq} it suffices to show
 \begin{align*}
-\operatorname{isList} \, l\, xs \ast \operatorname{all} \operatorname{isNat} xs \implies 
+\isList {l} {xs} \ast \all {\operatorname{isNat}} {xs} \implies 
 \begin{array}{l}
 \left( \All x, a. \All ys.  \hoareV{\operatorname{isNat}\, x \ast a = \Sigma_{y \in ys} y}{(\lambda p, \Let x = \Proj{1} p in \Let y = \Proj{2} p in x + y) (x, \, a)}{r. r = \Sigma_{y\in (x::ys)}y} \right) \\
-\ast \operatorname{isList} \, l\, xs \ast \operatorname{all} \operatorname{isNat} xs \ast 0 = \Sigma_{x \in []} x\end{array}
+\ast \isList {l} {xs} \ast \all {\operatorname{isNat}} {xs} \ast 0 = \Sigma_{x \in []} x\end{array}
 \end{align*}
 \ie{}~it is suffices to prove  
 \begin{enumerate}
@@ -260,14 +261,14 @@ The following client implements a filter of some boolean predicate $p$ on a list
 \begin{align*}
 \All P. \All l. \All xs. 
 \hoareV[t]{ \left( \All x. \hoare{\TRUE}{p \, x}{v. \operatorname{isBool} \, v \ast v = P \, x}\right)
-\ast \operatorname{isList} \, l\, xs }{\langkw{filter}(p, l)}{r.  \operatorname{isList} \, l\, xs \ast \operatorname{isList} \, r \left( \operatorname{listFilter} \, P \, xs \right)}
+\ast \isList {l} {xs} }{\langkw{filter}(p, l)}{r.  \isList {l} {xs} \ast \isList {r} {\left( \listFilter {P} {xs} \right)}}
 \end{align*}
 where
 \begin{align*}
-\operatorname{listFilter} \, P \, [] &\equiv \, [] \\
-\operatorname{listFilter} \, P \, (x :: xs) &\equiv \begin{cases} \left( x :: \left( \operatorname{listFilter} \, P \, xs \right) \right)
+\listFilter {P} {[]} &\equiv \, [] \\
+\listFilter {P} {(x :: xs)} &\equiv \begin{cases} \left( x :: \left( \listFilter {P} {xs} \right) \right)
 													  & \text{if } \, P \, x = \True  \\
-\operatorname{listFilter} \, P \, xs  & \text{otherwise } \end{cases}
+\listFilter {P} {xs}  & \text{otherwise } \end{cases}
 \end{align*}
 
 The specification
@@ -281,20 +282,20 @@ The specification of $\langkw{filter}$ states that given such an implementation 
 Let $P, l$ and $xs$ be given. By $\ruleref{Ht-let-det-temp}$ it suffices to show
 \begin{align*}
 \hoareV{ \left( \All x. \hoare{\TRUE}{p \, x}{v. \operatorname{isBool} \, v \ast v = P \, x}\right)
-\ast \operatorname{isList} \, l\, xs }
-{\langkw{foldr}\left(\left( \lambda y, \Let x = \Proj{1} y in \Let xs = \Proj{2} y in \If {p\, x} then \Inj{2} (\Ref (x, xs) ) \Else  xs\right), \Inj{1}(), l\right)}{r.  \operatorname{isList} \, l\, xs \ast \operatorname{isList} \, r \left( \operatorname{listFilter} \, P \, xs \right)}
+\ast \isList {l} {xs} }
+{\langkw{foldr}\left(\left( \lambda y, \Let x = \Proj{1} y in \Let xs = \Proj{2} y in \If {p\, x} then \Inj{2} (\Ref (x, xs) ) \Else  xs\right), \Inj{1}(), l\right)}{r.  \isList {l} {xs} \ast \isList {r} {\left( \listFilter {P} {xs} \right)}}
  \end{align*}
-  By applying the specification for \langkw{foldr} with $\TRUE$ as $P \, x $, $\operatorname{isList} \, a  \, \left( \operatorname{listFilter} \, P \, xs \right) $ as $I \, xs \, a $,
+  By applying the specification for \langkw{foldr} with $\TRUE$ as $P \, x $, $\isList {a} {\left( \listFilter {P} {xs} \right)} $ as $I \, xs \, a $,
   \begin{align*}
     \left( \lambda y, \Let x = \Proj{1} y in \Let xs = \Proj{2} y in \If {p\, x} then \Inj{2} (\Ref (x, xs) ) \Else  xs \right)
   \end{align*}
   as $f$, $xs$ as $xs$ and $l$ as $l$ we get that
  \begin{align*}
 \hoareV{ \begin{array}{l}
-\left(  \All x'. \All a'. \All ys. \hoare {\TRUE \ast \operatorname{isList} \, a'  \, \left( \operatorname{listFilter} \, P \, ys \right)}{p' (x', a')}{v. \operatorname{isList} \, v \, \left( \operatorname{listFilter} \, P \, (x'::ys) \right) }
+\left(  \All x'. \All a'. \All ys. \hoare {\TRUE \ast \isList {a'} {\left( \listFilter {P} {ys} \right)}}{p' (x', a')}{v. \isList {v} {\left( \listFilter {P} {(x'::ys)} \right)} }
 \right) \\
-\ast \operatorname{isList} \, l\, xs \ast \operatorname{all} (\lambda x . \TRUE) \, xs \ast \operatorname{isList}(\Inj{1}())\, (\operatorname{listFilter} \, P \, []) \end{array}}
-{\langkw{foldr}\left(p', \Inj{1}(), l\right)}{r.  \operatorname{isList} \, l\, xs \ast \operatorname{isList} \, r \left( \operatorname{listFilter} \, P \, xs \right)}
+\ast \isList {l} {xs} \ast \all {(\lambda x . \TRUE)} {xs} \ast \isList {(\Inj{1}())} {(\listFilter {P} {[]})} \end{array}}
+{\langkw{foldr}\left(p', \Inj{1}(), l\right)}{r.  \isList {l} {xs} \ast \isList {r} {\left( \listFilter {P} {xs} \right)}}
  \end{align*}
  where $p'$ is a shorthand notation for
  \begin{align*}
@@ -304,19 +305,19 @@ Let $P, l$ and $xs$ be given. By $\ruleref{Ht-let-det-temp}$ it suffices to show
  By \ruleref{Ht-csq} we are done if we can show that
  \begin{align*}
  & \left( \All x. \hoare{\TRUE}{p \, x}{v. \operatorname{isBool} \, v \ast v = P \, x}\right)
-\ast \operatorname{isList} \, l\, xs  \\
+\ast \isList {l} {xs}  \\
 & \implies \\
 & \begin{array}{l}
-\left(  \All x'. \All a'. \All ys. \hoare {\TRUE \ast \operatorname{isList} \, a'  \, \left( \operatorname{listFilter} \, P \, ys \right)}{p' \, (x', \, a')}{v.\operatorname{isList} \, v \, \left( \operatorname{listFilter} \, P \, (x'::ys) \right)}
+\left(  \All x'. \All a'. \All ys. \hoare {\TRUE \ast \isList {a'} {\left( \listFilter {P} {ys} \right)}}{p' \, (x', \, a')}{v.\isList {v} {\left( \listFilter {P} {(x'::ys)} \right)}}
 \right) \\
-\ast \operatorname{isList} \, l\, xs \ast \operatorname{all} (\lambda x . \TRUE) \, xs \ast \operatorname{isList} (\Inj{1}()) \, (\operatorname{listFilter} \, P \, []) \end{array}
+\ast \isList {l} {xs} \ast \all {(\lambda x . \TRUE)} {xs} \ast \isList {(\Inj{1}())} {(\listFilter {P} {[]})} \end{array}
  \end{align*}
-Since $\operatorname{isList} \, l\, xs$ clearly implies $\operatorname{isList} \, l\, xs$ we only need to show.
+Since $\isList {l} {xs}$ clearly implies $\isList {l} {xs}$ we only need to show.
 \begin{enumerate}
 \item $\All x. \hoare{\TRUE}{p \, x}{v. \operatorname{isBool} \, v \ast v = P \, x} \\
-\implies \All x'. \All a'. \All ys. \hoare {\TRUE \ast \operatorname{isList} \, a'  \, \left( \operatorname{listFilter} \, P \, ys \right)}{p' \, (x', \, a')}{v.\operatorname{isList} \, v \, \left( \operatorname{listFilter} \, P \, (x'::ys) \right)}$
-\item $\TRUE \implies \operatorname{all} (\lambda x . \TRUE) \, xs$
-\item $\TRUE \implies \operatorname{isList} (\Inj{1}()) \, (\operatorname{listFilter} \, P \, [])$
+\implies \All x'. \All a'. \All ys. \hoare {\TRUE \ast \isList {a'} {\left( \listFilter {P} {ys} \right)}}{p' \, (x', \, a')}{v.\isList {v} {\left( \listFilter {P} {(x'::ys)} \right)}}$
+\item $\TRUE \implies \all {(\lambda x . \TRUE)} {xs}$
+\item $\TRUE \implies \isList {(\Inj{1}())} {(\listFilter {P} {[]})}$
 \end{enumerate}
 
 \begin{exercise}
