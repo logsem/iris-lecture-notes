@@ -26,7 +26,7 @@ We will write $\lambda x . e$ for the term $\Rec{f} x = e$ where $f$ is some fre
 Thus $\lambda x . e$ is a non-recursive function with argument $x$ and body $e$.
 We will also write $\Let x = e_1 in e_2$ for the term $(\lambda x . e_2) e_1$.
 This is the standard let expression, whose operational meaning (see the operational semantics below) is to evaluate the term $e_1$ to a value $v$, and then evaluate $e_2[v/x]$, \ie{} the term $e_2$ with the value $v$ substituted for the variable $x$.
-Referring to function defintiions can be quite verbose, \eg\
+Referring to function definitions can be quite verbose, \eg\
 $\langkw{loop} \mdef \Rec \textlang{loop} () = ();\ \textlang{loop}\ ()$.
 As such, we often collapse the outer-most binding with the function binding,
 and simply write $\langkw{loop}\ () = ();\ \langkw{loop}\ ()$.
@@ -158,10 +158,10 @@ and simply write $\langkw{loop}\ () = ();\ \langkw{loop}\ ()$.
 The operational semantics is defined by means of pure reductions,
 one-step reductions involving the heap, and general reductions 
 among configurations.  
-A configuation consists of a heap and a thread
+A configuration consists of a heap and a thread
 pool, and a thread pool is a mapping from thread identifiers (natural
 numbers) to expressions, i.e., a finite set of named threads.
-Note that reduction of configuations is
+Note that reduction of configurations is
 nondeterministic: we may choose to reduce in any thread
 in the thread pool.
 This reflects that we are modelling a kind of preemptive concurrent system.
