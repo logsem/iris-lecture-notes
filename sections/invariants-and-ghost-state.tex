@@ -2262,7 +2262,13 @@ Let us see what we need from the resource algebra to be able to verify the count
   \isCounter(\ell, n, \gamma) = \ownGhost{\gamma}{\authfrag n} \ast \Exists \iota . \knowInv{\iota}{\Exists m . \ell \pointsto m \ast \ownGhost{\gamma}{\authfull m}}
 \end{align}
 as the abstract predicate.
-First, to verify the read method we will open the invariant, and after some simplification we will have $\ownGhost{\gamma}{\authfull m \cdot \authfrag n}$ and the value we are going to return is $m$.
+First, to verify the $\newC$ method, we need to be able to allocate the ghost
+state for the initial state $\ownGhost{\gamma}{\authfull 0 \cdot \authfrag 0}$.
+This can be done using \ruleref{Ghost-alloc}, by proving that the ghost state is
+valid when the numbers are identical $\authfull n \cdot \authfrag n \in \Vl$.
+Secondly, to verify the read method we will open the invariant, and after some
+simplification we will have $\ownGhost{\gamma}{\authfull m \cdot \authfrag n}$
+and the value we are going to return is $m$.
 From this we should be able to conclude that $m \geq n$.
 Using \ruleref{Own-valid} we have $\authfull m \cdot \authfrag n \in \Vl$, where $\Vl$ is the set of valid elements of the resource algebra we are trying to define.
 Hence we need to be able to conclude $m \geq n$ from $\authfull m \cdot \authfrag n \in \Vl$.
@@ -2291,6 +2297,8 @@ Thus it would suffice to have the frame preserving update
 
 To recap, here are the requirements of our resource algebra.
 \begin{align}
+  \label{eq:0:alloc-of-auth-max}
+  &\authfull n \cdot \authfrag n \in \Vl\\
   \label{eq:1:core-of-auth-max}
   &\mcore{\authfrag n} = \authfrag{n}\\
   \label{eq:2:valid-of-auth-max}
@@ -2314,6 +2322,8 @@ Moreover it has a unit, which is the element $(\bot, 0)$.
 
 For $m, n \in \NN$ let us write $\authfull m$ for $(m, 0)$ and $\authfrag n$ for $(\bot, n)$.
 Using the definition of the operation we clearly see $\authfull m \cdot \authfrag n = (m, n)$.
+The property~\eqref{eq:0:alloc-of-auth-max} is then immediate as validity of
+$(n,n)$ simplifies to $n \geq n$, which is trivial.
 Thus to get property~\eqref{eq:2:valid-of-auth-max} we should require that if $(m, n) \in \Vl$ for natural numbers $n$ and $m$ then $m \geq n$.
 Moreover, the closure condition of the set of valid elements states that subparts of valid elements must also be valid.
 Thus, since we wish $(n, n) = \authfrag n \cdot \authfull n \in \Vl$ we must also have $\authfrag n = (\bot, n) \in \Vl$.
