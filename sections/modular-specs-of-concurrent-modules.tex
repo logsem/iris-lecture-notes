@@ -82,7 +82,7 @@ It is a simple exercise to verify that for all $n, m$ and $p, q$ we have the fol
   \abstractstate{\gamma}{q}{m} \ast \abstractstate{\gamma}{q}{n} \proves n = m \label{eq:ra-abstract-state-eq}\\
   \abstractstate{\gamma}{p}{m} \ast \abstractstateauth{\gamma}{n} \proves n = m \label{eq:ra-abstract-state-auth-eq}\\
   \abstractstate{\gamma}{p}{m} \ast \abstractstate{\gamma}{q}{m} \provesIff \abstractstate{\gamma}{p+q}{m} \label{eq:ra-abstract-state-sum}  \\
-  \abstractstate{\gamma}{1}{m} \ast \abstractstateauth{\gamma}{m} \proves \pvs \abstractstate{\gamma}{1}{n} \ast \abstractstateauth{\gamma}{m} \label{eq:ra-abstract-state-upd}
+  \abstractstate{\gamma}{1}{m} \ast \abstractstateauth{\gamma}{m} \proves \pvs \abstractstate{\gamma}{1}{n} \ast \abstractstateauth{\gamma}{n} \label{eq:ra-abstract-state-upd}
 \end{align}
 The first property means that everybody in possession of the partial knowledge (fraction $q$ less than $1$) agrees on the value of the counter, the second property states that anyone in possession of the partial knowledge agrees with the authoritative part on the value of the counter, 
  the third property states how the abstract predicate can be split, and the last property states that anybody in full possession of the fragmental state of the counter and the authoritative state of the counter can update both.

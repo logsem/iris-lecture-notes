@@ -204,8 +204,8 @@ By unfolding the $\isLock$ predicate, we get the concrete pair of locations $\el
 \end{align*}
 Since $\FAA$ is atomic, we can open our invariant.
 We can use the \ruleref{Ht-FAA} rule.
-At this point, we obtain $\ell_{n} \pointsto n + 1$ where $n$ is the value of $\ell_{n}$ when we opened the invariant. We can now update our authoritative ghost state from $\authfull (o, \{ i \mid 0 \leq i < n \})$ to $\authfull (o, \{ i \mid 0 \leq i < n \} \cup \{n \}) \cdot \authfrag (\emptyset, \{n\})$.
-Performing the union gives us exactly the resources we need to close the invariant again. Moreover, the remaining ghost state $\authfrag (\emptyset, \{n\})$ is exactly $\issued (\gamma, n)$, so we are done with the intermediate goal. At this point we need to show:
+At this point, we obtain $\ell_{n} \pointsto n + 1$ where $n$ is the value of $\ell_{n}$ when we opened the invariant. We can now update our authoritative ghost state from $\authfull (o, \{ i \mid 0 \leq i < n \})$ to $\authfull (o, \{ i \mid 0 \leq i < n \} \cup \{n \}) \cdot \authfrag (\epsilon, \{n\})$.
+Performing the union gives us exactly the resources we need to close the invariant again. Moreover, the remaining ghost state $\authfrag (\epsilon, \{n\})$ is exactly $\issued (\gamma, n)$, so we are done with the intermediate goal. At this point we need to show:
 \begin{align*}
   \knowInv{\iota}{\lockInv (\gamma, \ell_{o}, \ell_{n}, P)}\proves \hoare{\issued (\gamma, n)}{\wait n \; v}{\_.P \ast \locked(\gamma)}
 \end{align*}
