@@ -1086,7 +1086,7 @@ The simplest way is to write the following three functions
 \begin{align*}
   \operatorname{mk\_counter} &= \lambda \_ . \Ref(0)\\
   \operatorname{inc\_counter} &= \lambda x . x \gets \deref{x} + 1\\
-  \operatorname{read\_counter} &=  \deref{x}
+  \operatorname{read\_counter} &= \lambda x . \deref{x}
 \end{align*}
 and prove the following three specifications
 \begin{align*}
