@@ -127,8 +127,8 @@ By exercise \ref{exercise:isList-second-case} we get that the second case is tak
   \hoareV{ 
   	\isList {l'} {xs'} \ast \all {P} {(x::xs')} \ast I \, [] \, a \ast l = \Inj2 hd \ast hd \pointsto (x,l') }
   {\begin{array}{l}
-     \Let h= \Proj{1} \deref x_2 in\\
-     \Let t = \Proj{2} \deref x_2 in\\
+     \Let h= \Proj{1} \deref hd in\\
+     \Let t = \Proj{2} \deref hd in\\
     	f\, (h, (g(f, a, t)))
    \end{array}}
   {r.  \isList {l} {(x::xs')} \ast I \, (x::xs') \, r}
