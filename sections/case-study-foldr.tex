@@ -16,7 +16,7 @@ The first argument $f$ is a function taking a pair as an argument, the second ar
 
 The specification of the $\langkw{foldr}$ function is as follows.
 \begin{align*}
-\All P, I. \All f \in \Val . \All xs. \All l. \hoareV[t]
+\All P, I. \All f, a, l \in \Val . \All xs. \hoareV[t]
 {
   \begin{array}{l}
     \isList {l} {xs} \ast \all {P} {xs} \ast  I \, [] \, a \ast{}\\
@@ -70,7 +70,7 @@ In this sense the specification for $f$ simply says that if $x$ satisfies $P$ an
 \end{remark}
 
 \subsubsection*{Proof of the specification}
-Let $P, I, f, xs$ and $l$ be given. As Hoare triples are persistent and persistence is preserved by quantification we may move 
+Let $P, I, f, a, xs$ and $l$ be given. As Hoare triples are persistent and persistence is preserved by quantification we may move 
 \begin{align*}
 \All x. \All a'. \All ys. \hoare{P x \ast I \, ys \, a'}{f \, (x, \, a')}{r. I\, (x::ys)}
  \end{align*} 
