@@ -289,7 +289,7 @@ Let $P, l$ and $xs$ be given. By $\ruleref{Ht-let-det-temp}$ it suffices to show
   \begin{align*}
     \left( \lambda y, \Let x = \Proj{1} y in \Let xs = \Proj{2} y in \If {p\, x} then \Inj{2} (\Ref (x, xs) ) \Else  xs \right)
   \end{align*}
-  as $f$, $xs$ as $xs$ and $l$ as $l$ we get that
+  as $f$, $\Inj{1}()$ as $a$, $xs$ as $xs$ and $l$ as $l$ we get that
  \begin{align*}
 \hoareV{ \begin{array}{l}
 \left(  \All x'. \All a'. \All ys. \hoare {\TRUE \ast \isList {a'} {\left( \listFilter {P} {ys} \right)}}{p' (x', a')}{v. \isList {v} {\left( \listFilter {P} {(x'::ys)} \right)} }
@@ -312,7 +312,7 @@ Let $P, l$ and $xs$ be given. By $\ruleref{Ht-let-det-temp}$ it suffices to show
 \right) \\
 \ast \isList {l} {xs} \ast \all {(\lambda x . \TRUE)} {xs} \ast \isList {(\Inj{1}())} {(\listFilter {P} {[]})} \end{array}
  \end{align*}
-Since $\isList {l} {xs}$ clearly implies $\isList {l} {xs}$ we only need to show.
+Since $\isList {l} {xs}$ clearly implies $\isList {l} {xs}$ we only need to show
 \begin{enumerate}
 \item $\All x. \hoare{\TRUE}{p \, x}{v. \operatorname{isBool} \, v \ast v = P \, x} \\
 \implies \All x'. \All a'. \All ys. \hoare {\TRUE \ast \isList {a'} {\left( \listFilter {P} {ys} \right)}}{p' \, (x', \, a')}{v.\isList {v} {\left( \listFilter {P} {(x'::ys)} \right)}}$
