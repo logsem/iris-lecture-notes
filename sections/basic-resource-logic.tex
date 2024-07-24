@@ -43,12 +43,12 @@
   {\vctx,\varB : \typeB, \var :\type\mid \prop \proves \propB}}
 \newcommand{\logicctrule}[1][]
 {\rulegen[#1]{C-T}
-  {\vctx,\var : \type,\varB :\typeB\mid \prop \proves \propB}
+  {\vctx,\var : \type,\varB :\type\mid \prop \proves \propB}
   {\vctx,\var : \type\mid \prop[\var/\varB] \proves \propB[\var/\varB]}}
 \newcommand{\logicsubstrule}[1][]
 {\rulegen[#1]{Subst}
-  {\vctx \mid M : \type\\ \vctx, \var:\type \mid \prop \proves \propB}
-  {\vctx \mid \prop[M/\var] \proves \propB[M/\var]}}
+  {\vctx \proves \wtt\term\type\\ \vctx, \var:\type \mid \prop \proves \propB}
+  {\vctx \mid \prop[\term/\var] \proves \propB[\term/\var]}}
 \newcommand{\logicasmrule}[1][]
 {\rulegen[#1]{Asm}
   { }
