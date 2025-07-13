@@ -33,19 +33,24 @@
   year =     1983,
 }
 
-@Article{timany:logrel-in-iris,
-  author = 	 {A. Timany and L. Birkedal},
-  title = 	 {Type Soundness and Contextual Refinement via
-  Logical Relations in Higher-Order Concurrent Separation Logic},
-  journal = 	 {},
-  year = 	 {2018},
-  OPTkey = 	 {},
-  OPTvolume = 	 {},
-  OPTnumber = 	 {},
-  OPTpages = 	 {},
-  OPTmonth = 	 {},
-  note =	 {Manuscript},
-  annote = 	 {Available at \textt{iris-project.org}}
+@article{timany:logrel-in-iris,
+  author = {Timany, Amin and Krebbers, Robbert and Dreyer, Derek and Birkedal, Lars},
+  title = {A Logical Approach to Type Soundness},
+  year = {2024},
+  issue_date = {December 2024},
+  publisher = {Association for Computing Machinery},
+  address = {New York, NY, USA},
+  volume = {71},
+  number = {6},
+  issn = {0004-5411},
+  url = {https://doi.org/10.1145/3676954},
+  doi = {10.1145/3676954},
+  abstract = {Type soundness, which asserts that “well-typed programs cannot go wrong,” is widely viewed as the canonical theorem one must prove to establish that a type system is doing its job. It is commonly proved using the so-called syntactic approach (also known as progress and preservation), which has had a huge impact on the study and teaching of programming language foundations. Unfortunately, syntactic type soundness is a rather weak theorem. It only applies to programs that are well typed in their entirety and thus tells us nothing about the many programs written in “safe” languages that make use of “unsafe” language features. Even worse, it tells us nothing about whether type systems achieve one of their main goals: enforcement of data abstraction. One can easily define a language that enjoys syntactic type soundness and yet fails to support even the most basic modular reasoning principles for abstraction mechanisms like closures, objects, and abstract data types. Given these concerns, we argue that programming languages researchers should no longer be satisfied with proving syntactic type soundness and should instead start proving semantic type soundness, a more useful theorem that captures more accurately what type systems are actually good for. Semantic type soundness is an old idea—Milner’s original account of type soundness from 1978 was semantic—but it fell out of favor in the 1990s due to limitations and complexities of denotational models. In the succeeding decades, thanks to a series of technical advances—notably, step-indexed Kripke logical relations constructed over operational semantics and higher-order concurrent separation logic as consolidated in the Iris framework in Coq—we can now build (machine-checked) semantic soundness proofs at a much higher level of abstraction than was previously possible. The resulting “logical” approach to semantic type soundness has already been employed to great effect in a number of recent papers, but those papers typically (a) concern advanced problem scenarios that complicate the presentation, (b) assume significant prior knowledge of the reader, and (c) suppress many details of the proofs. Here, we aim to provide a gentler, more pedagogically motivated introduction to logical type soundness, targeted at a broader audience that may or may not be familiar with logical relations and Iris. As a bonus, we also show how logical type soundness proofs can easily be generalized to establish an even stronger relational property—representation independence—for realistic type systems.},
+  journal = {J. ACM},
+  month = nov,
+  articleno = {40},
+  numpages = {75},
+  keywords = {Type soundness, data abstraction, logical relations, step-indexing, concurrent separation logic, Iris, Coq}
 }
 
 @article{DINSDALEYOUNG20181,
